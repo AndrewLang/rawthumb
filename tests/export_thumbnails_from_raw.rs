@@ -82,6 +82,49 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+#[test]
+#[ignore]
+fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let root = PathBuf::from(r"D:\Photos\Brands");
+    let test_files = vec![
+        root.join("Cannon").join("EOS 90D").join("IMG_4011.cr3"),
+        root.join("Cannon")
+            .join("EOS 7D")
+            .join("Canon - EOS 7D - RAW (3_2).CR2"),
+        root.join("Nikon").join("D500").join("DSC_1284.NEF"),
+    ];
+
+    let output_root = PathBuf::from(r"D:\Photos\temp\thumbnails");
+    fs::create_dir_all(&output_root)?;
+
+    let mut successes = 0usize;
+    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+
+    for path in test_files {
+        match process_file(&path, &root, &output_root) {
+            Ok(()) => {
+                successes += 1;
+            }
+            Err(e) => {
+                failures.push((path.clone(), e.to_string()));
+            }
+        }
+    }
+
+    println!(
+        " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        successes,
+        failures.len(),
+        output_root,
+        start.elapsed(),
+        start.elapsed() / (successes as u32 + failures.len() as u32)
+    );
+    println!("=========================");
+
+    Ok(())
+}
+
 /// Recursively scan the root directory for RAW files with supported extensions.
 fn scan_supported_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut stack = vec![root.to_path_buf()];
