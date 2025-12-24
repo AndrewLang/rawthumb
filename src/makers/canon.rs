@@ -2,12 +2,14 @@
 
 use once_cell::sync::Lazy;
 
+use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
+use crate::rawthumb::core::exif::{ExifFieldError, ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
-static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
-    quickexif::describe_rule!(tiff {
+static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
+    describe_exif_rule!(tiff {
         0x0112 / orientation
         next {
             0x0201 / thumbnail
@@ -17,11 +19,11 @@ static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
 });
 
 struct CanonDecoder {
-    info: quickexif::ParsedInfo,
+    info: ParsedExif,
 }
 
 impl CanonDecoder {
-    fn new(info: quickexif::ParsedInfo) -> Self {
+    fn new(info: ParsedExif) -> Self {
         Self { info }
     }
 
@@ -50,7 +52,7 @@ impl CanonDecoder {
         }
 
         Err(DecodingError::RawInfoError(
-            quickexif::parsed_info::Error::FieldNotFound("thumbnail".into()),
+            ExifFieldError::field_not_found("thumbnail"),
         ))
     }
 }
@@ -66,9 +68,10 @@ impl ThumbnailExtractor for CanonThumbnailExtractor {
         &self,
         buffer: &'a [u8],
         _info: &RawMetadata,
-        parsed: quickexif::ParsedInfo,
+        exif: &dyn ExifReader,
+        parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
-        let raw_info = quickexif::parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
+        let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let decoder = CanonDecoder::new(raw_info);
         let thumbnail = decoder.get_thumbnail(buffer)?;
         let orientation: Orientation = decoder.get_orientation().into();
@@ -101,7 +104,7 @@ fn find_largest_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
     best.map(|(s, l)| &buffer[s..s + l])
 }
 
-fn jpeg_from_exif<'a>(buffer: &'a [u8], info: &quickexif::ParsedInfo) -> Option<&'a [u8]> {
+fn jpeg_from_exif<'a>(buffer: &'a [u8], info: &ParsedExif) -> Option<&'a [u8]> {
     let offset = info.usize("thumbnail").ok()?;
     let len = info.usize("thumbnail_len").ok()?;
     if offset + len > buffer.len() || len < 4 {

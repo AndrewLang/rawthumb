@@ -3,4 +3,3 @@ pub mod formats;
 pub mod makers;
 pub mod export;
 pub mod utility;
-pub mod quickexif;

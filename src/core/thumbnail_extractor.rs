@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::rawthumb::core::errors::Result;
+use crate::rawthumb::core::exif::{ExifReader, ParsedExif};
 use crate::rawthumb::core::types::{RawMetadata, ThumbnailResult};
 
 pub trait ThumbnailExtractor: Send + Sync {
@@ -9,6 +10,7 @@ pub trait ThumbnailExtractor: Send + Sync {
         &self,
         buffer: &'a [u8],
         info: &RawMetadata,
-        parsed: quickexif::ParsedInfo,
+        exif: &dyn ExifReader,
+        parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>>;
 }

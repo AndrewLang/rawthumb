@@ -2,12 +2,14 @@
 
 use once_cell::sync::Lazy;
 
+use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
+use crate::rawthumb::core::exif::{ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
-static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
-    quickexif::describe_rule!(tiff {
+static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
+    describe_exif_rule!(tiff {
         0x0112 : u16 / orientation
         0x014a? / sub_ifd(sub_ifd_count)
         0x828e? / cfa_pattern
@@ -50,11 +52,11 @@ static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
 });
 
 struct AdobeDecoder {
-    info: quickexif::ParsedInfo,
+    info: ParsedExif,
 }
 
 impl AdobeDecoder {
-    fn new(info: quickexif::ParsedInfo) -> Self {
+    fn new(info: ParsedExif) -> Self {
         Self { info }
     }
 
@@ -90,9 +92,10 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
         &self,
         buffer: &'a [u8],
         _info: &RawMetadata,
-        parsed: quickexif::ParsedInfo,
+        exif: &dyn ExifReader,
+        parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
-        let raw_info = quickexif::parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
+        let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let decoder = AdobeDecoder::new(raw_info);
         let thumbnail = decoder.get_thumbnail(buffer)?;
         let orientation: Orientation = decoder.get_orientation().into();

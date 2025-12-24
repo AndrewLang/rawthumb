@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::sync::Arc;
 
 use crate::rawthumb::core::errors::Result;
+use crate::rawthumb::core::exif::ExifReader;
 use crate::rawthumb::core::thumbnail_decoder::ThumbnailDecoder;
 use crate::rawthumb::core::types::ThumbnailResult;
 
@@ -14,6 +16,12 @@ impl Exporter {
     pub fn new() -> Self {
         Self {
             decoder: ThumbnailDecoder::new(),
+        }
+    }
+
+    pub fn new_with_exif(exif: Arc<dyn ExifReader>) -> Self {
+        Self {
+            decoder: ThumbnailDecoder::new_with_exif(exif),
         }
     }
 
