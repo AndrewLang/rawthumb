@@ -1,7 +1,9 @@
 use thiserror::Error;
 
+pub type Result<T> = std::result::Result<T, ImageProcessingError>;
+
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ImageProcessingError {
     #[error("Not implemented: {0}")]
     Unimplemented(&'static str),
     #[error(transparent)]
@@ -13,8 +15,6 @@ pub enum Error {
     #[error("{0}")]
     Raw(String),
 }
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum DecodingError {

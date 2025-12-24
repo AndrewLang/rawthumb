@@ -3,8 +3,8 @@
 use once_cell::sync::Lazy;
 
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::thumbnail::ThumbnailExtractor;
-use crate::rawthumb::core::types::{BasicInfo, Orientation, ThumbnailResult};
+use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
+use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
 static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
     quickexif::describe_rule!(tiff {
@@ -65,21 +65,27 @@ impl ThumbnailExtractor for CanonThumbnailExtractor {
     fn extract<'a>(
         &self,
         buffer: &'a [u8],
-        _info: &BasicInfo,
+        _info: &RawMetadata,
         parsed: quickexif::ParsedInfo,
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = quickexif::parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let decoder = CanonDecoder::new(raw_info);
         let thumbnail = decoder.get_thumbnail(buffer)?;
         let orientation: Orientation = decoder.get_orientation().into();
-        Ok(ThumbnailResult { jpeg: thumbnail, orientation })
+        Ok(ThumbnailResult {
+            jpeg: thumbnail,
+            orientation,
+        })
     }
 }
 
 fn find_largest_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
     let mut start = 0usize;
     let mut best: Option<(usize, usize)> = None;
-    while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
+    while let Some(rel_soi) = buffer[start..]
+        .windows(3)
+        .position(|w| w == [0xff, 0xd8, 0xff])
+    {
         let soi = start + rel_soi;
         if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
             let end = soi + 3 + rel_eoi + 2;
@@ -128,22 +134,28 @@ fn is_display_jpeg(slice: &[u8]) -> bool {
 }
 
 fn find_display_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
-    find_largest_jpeg_slice(buffer).filter(|s| is_display_jpeg(s)).or_else(|| {
-        // As a fallback, return the first valid JPEG slice, even without APP markers.
-        let mut start = 0usize;
-        while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
-            let soi = start + rel_soi;
-            if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
-                let end = soi + 3 + rel_eoi + 2;
-                let slice = &buffer[soi..end];
-                if is_valid_jpeg(slice) {
-                    return Some(slice);
+    find_largest_jpeg_slice(buffer)
+        .filter(|s| is_display_jpeg(s))
+        .or_else(|| {
+            // As a fallback, return the first valid JPEG slice, even without APP markers.
+            let mut start = 0usize;
+            while let Some(rel_soi) = buffer[start..]
+                .windows(3)
+                .position(|w| w == [0xff, 0xd8, 0xff])
+            {
+                let soi = start + rel_soi;
+                if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9])
+                {
+                    let end = soi + 3 + rel_eoi + 2;
+                    let slice = &buffer[soi..end];
+                    if is_valid_jpeg(slice) {
+                        return Some(slice);
+                    }
+                    start = end;
+                    continue;
                 }
-                start = end;
-                continue;
+                break;
             }
-            break;
-        }
-        None
-    })
+            None
+        })
 }

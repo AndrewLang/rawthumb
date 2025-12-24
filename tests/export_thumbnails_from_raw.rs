@@ -46,8 +46,9 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
+    let exporter = rawthumb::Exporter::new();
     for path in files {
-        match process_file(&path, &scan_root, &output_root) {
+        match process_file(&path, &scan_root, &output_root, &exporter) {
             Ok(()) => {
                 successes += 1;
             }
@@ -101,8 +102,9 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
+    let exporter = rawthumb::Exporter::new();
     for path in test_files {
-        match process_file(&path, &root, &output_root) {
+        match process_file(&path, &root, &output_root, &exporter) {
             Ok(()) => {
                 successes += 1;
             }
@@ -161,6 +163,7 @@ fn process_file(
     path: &Path,
     root: &Path,
     output_root: &Path,
+    exporter: &rawthumb::Exporter,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let raw_bytes = fs::read(path)?;
 
@@ -172,7 +175,7 @@ fn process_file(
     }
 
     let output_path_str = output_path.to_string_lossy().to_string();
-    rawthumb::export_thumbnail_to_file(&raw_bytes, &output_path_str)?;
+    exporter.export_thumbnail_to_file(&raw_bytes, &output_path_str)?;
 
     // Basic validation of the output JPEG.
     let output_bytes = fs::read(&output_path)?;

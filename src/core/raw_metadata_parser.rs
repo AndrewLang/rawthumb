@@ -2,10 +2,11 @@
 
 use once_cell::sync::Lazy;
 
-use crate::rawthumb::core::errors::{Error, Result};
-use crate::rawthumb::core::types::{BasicInfo, ParsedBasicInfo};
+use crate::rawthumb::core::errors::{ImageProcessingError, Result};
+use crate::rawthumb::core::image_helper::ImageHelper;
+use crate::rawthumb::core::types::RawMetadata;
 
-static BASIC_INFO_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
+static RAW_METADATA_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
     quickexif::describe_rule!(tiff {
         0x010f {
             str + 0 / make
@@ -48,28 +49,35 @@ static BASIC_INFO_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
     })
 });
 
-pub fn parse_basic_info(_buffer: &[u8]) -> Option<ParsedBasicInfo> {
-    None
-}
-
 #[allow(dead_code)]
-pub struct BasicInfoParser;
+pub struct RawMetadataParser;
 
-impl BasicInfoParser {
-    pub fn parse(buffer: &[u8]) -> Result<(quickexif::ParsedInfo, BasicInfo)> {
-        let parsed = quickexif::parse(buffer, &BASIC_INFO_RULE).map_err(Error::from)?;
-        let basic = BasicInfo {
-            make: parsed
-                .str("make")
-                .unwrap_or_default()
-                .to_string(),
-            model: parsed
-                .str("model")
-                .unwrap_or_default()
-                .to_string(),
+impl RawMetadataParser {
+    pub fn parse(buffer: &[u8]) -> Result<(quickexif::ParsedInfo, RawMetadata)> {
+        let parsed =
+            quickexif::parse(buffer, &RAW_METADATA_RULE).map_err(ImageProcessingError::from)?;
+        let basic = RawMetadata {
+            make: parsed.str("make").unwrap_or_default().to_string(),
+            model: parsed.str("model").unwrap_or_default().to_string(),
             dng_version: parsed.u16("dng_version").ok(),
             cfa_pattern: parsed.u8a4("cfa_pattern").ok(),
         };
         Ok((parsed, basic))
+    }
+
+    pub fn parse_with_cr3_fallback(
+        buffer: &[u8],
+    ) -> Result<(quickexif::ParsedInfo, RawMetadata, &[u8])> {
+        match Self::parse(buffer) {
+            Ok((info, basic)) => Ok((info, basic, buffer)),
+            Err(e) => {
+                if let Some(exif_buffer) = ImageHelper::extract_canon_cr3_exif_segment(buffer) {
+                    let (info, basic) = Self::parse(exif_buffer)?;
+                    Ok((info, basic, exif_buffer))
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 }

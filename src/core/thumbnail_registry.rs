@@ -2,18 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::rawthumb::core::errors::Result;
-use crate::rawthumb::core::types::{BasicInfo, ThumbnailResult};
-
-pub trait ThumbnailExtractor: Send + Sync {
-    fn supports_make(&self, make: &str) -> bool;
-    fn extract<'a>(
-        &self,
-        buffer: &'a [u8],
-        info: &BasicInfo,
-        parsed: quickexif::ParsedInfo,
-    ) -> Result<ThumbnailResult<'a>>;
-}
+use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 
 pub struct ThumbnailRegistry {
     makers: Vec<Arc<dyn ThumbnailExtractor>>,

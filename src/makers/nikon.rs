@@ -3,8 +3,8 @@
 use once_cell::sync::Lazy;
 
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::thumbnail::ThumbnailExtractor;
-use crate::rawthumb::core::types::{BasicInfo, Orientation, ThumbnailResult};
+use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
+use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
 static THUMBNAIL_RULE: Lazy<quickexif::ParsingRule> = Lazy::new(|| {
     quickexif::describe_rule!(tiff {
@@ -57,13 +57,16 @@ impl ThumbnailExtractor for NikonThumbnailExtractor {
     fn extract<'a>(
         &self,
         buffer: &'a [u8],
-        _info: &BasicInfo,
+        _info: &RawMetadata,
         parsed: quickexif::ParsedInfo,
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = quickexif::parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let decoder = NikonDecoder::new(raw_info);
         let thumbnail = decoder.get_thumbnail(buffer)?;
         let orientation: Orientation = decoder.get_orientation().into();
-        Ok(ThumbnailResult { jpeg: thumbnail, orientation })
+        Ok(ThumbnailResult {
+            jpeg: thumbnail,
+            orientation,
+        })
     }
 }
