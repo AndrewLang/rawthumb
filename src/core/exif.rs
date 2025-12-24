@@ -8,6 +8,25 @@ use crate::rawthumb::core::types::RawMetadata;
 pub type ExifResult<T> = Result<T, ExifError>;
 pub type ExifFieldResult<T> = Result<T, ExifFieldError>;
 
+pub struct ExifNames;
+
+impl ExifNames {
+    pub const ORIENTATION: &'static str = "orientation";
+    pub const THUMBNAIL: &'static str = "thumbnail";
+    pub const THUMBNAIL_LEN: &'static str = "thumbnail_len";
+    pub const PREVIEW_OFFSET: &'static str = "preview_offset";
+    pub const PREVIEW_LEN: &'static str = "preview_len";
+    pub const MAKER_NOTES: &'static str = "maker_notes";
+    pub const PREVIEW_IMAGE_START: &'static str = "preview_image_start";
+    pub const PREVIEW_IMAGE_LEN: &'static str = "preview_image_len";
+    pub const MAKE: &'static str = "make";
+    pub const MODEL: &'static str = "model";
+    pub const DNG_VERSION: &'static str = "dng_version";
+    pub const CFA_PATTERN: &'static str = "cfa_pattern";
+    pub const TAG_VALUE: &'static str = "tag_value";
+    pub const TAG_LEN: &'static str = "tag_len";
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExifError {
     #[error(transparent)]
@@ -164,7 +183,7 @@ impl QuickExifReader {
         let rule = ExifParsingRule::new(quickexif::ParsingRule::Tiff(vec![
             quickexif::ParsingRule::TagItem {
                 tag,
-                name: "tag_value",
+                name: ExifNames::TAG_VALUE,
                 len: len_name,
                 is_optional: true,
                 is_value_u16,
@@ -181,10 +200,10 @@ impl ExifReader for QuickExifReader {
         let parsed = quickexif::parse(buffer, BASIC_INFO_RULE.inner())?;
         let parsed = ParsedExif::from(parsed);
         let basic = RawMetadata {
-            make: parsed.str("make").unwrap_or_default().to_string(),
-            model: parsed.str("model").unwrap_or_default().to_string(),
-            dng_version: parsed.u16("dng_version").ok(),
-            cfa_pattern: parsed.u8a4("cfa_pattern").ok(),
+            make: parsed.str(ExifNames::MAKE).unwrap_or_default().to_string(),
+            model: parsed.str(ExifNames::MODEL).unwrap_or_default().to_string(),
+            dng_version: parsed.u16(ExifNames::DNG_VERSION).ok(),
+            cfa_pattern: parsed.u8a4(ExifNames::CFA_PATTERN).ok(),
         };
         Ok((parsed, basic))
     }
@@ -208,18 +227,18 @@ impl ExifReader for QuickExifReader {
 
     fn get_orientation(&self, buffer: &[u8]) -> Option<u16> {
         self.parse_tag(buffer, 0x0112, true, None)
-            .and_then(|p| p.u16("tag_value").ok())
+            .and_then(|p| p.u16(ExifNames::TAG_VALUE).ok())
     }
 
     fn get_tag_u32(&self, buffer: &[u8], tag: u16) -> Option<u32> {
         self.parse_tag(buffer, tag, false, None)
-            .and_then(|p| p.u32("tag_value").ok())
+            .and_then(|p| p.u32(ExifNames::TAG_VALUE).ok())
     }
 
     fn get_tag_bytes<'a>(&self, buffer: &'a [u8], tag: u16) -> Option<&'a [u8]> {
-        let parsed = self.parse_tag(buffer, tag, false, Some("tag_len"))?;
-        let offset = parsed.u32("tag_value").ok()? as usize;
-        let len = parsed.u32("tag_len").ok()? as usize;
+        let parsed = self.parse_tag(buffer, tag, false, Some(ExifNames::TAG_LEN))?;
+        let offset = parsed.u32(ExifNames::TAG_VALUE).ok()? as usize;
+        let len = parsed.u32(ExifNames::TAG_LEN).ok()? as usize;
         if offset + len <= buffer.len() {
             Some(&buffer[offset..offset + len])
         } else {

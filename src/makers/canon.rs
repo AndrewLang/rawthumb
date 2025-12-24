@@ -4,7 +4,9 @@ use once_cell::sync::Lazy;
 
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::exif::{ExifFieldError, ExifParsingRule, ExifReader, ParsedExif};
+use crate::rawthumb::core::exif::{
+    ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
+};
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
@@ -19,16 +21,16 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 });
 
 struct CanonDecoder {
-    info: ParsedExif,
+    exif: ParsedExif,
 }
 
 impl CanonDecoder {
-    fn new(info: ParsedExif) -> Self {
-        Self { info }
+    fn new(exif: ParsedExif) -> Self {
+        Self { exif }
     }
 
     fn get_orientation(&self) -> Orientation {
-        match self.info.u16("orientation").ok() {
+        match self.exif.u16(ExifNames::ORIENTATION).ok() {
             None => Orientation::Horizontal,
             Some(o) => match o {
                 1 => Orientation::Horizontal,
@@ -42,7 +44,7 @@ impl CanonDecoder {
 
     fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
         // Prefer the Exif-provided preview when it looks like a displayable JPEG (APP0/APP1).
-        if let Some(exif_jpeg) = jpeg_from_exif(buffer, &self.info) {
+        if let Some(exif_jpeg) = jpeg_from_exif(buffer, &self.exif) {
             return Ok(exif_jpeg);
         }
 
@@ -52,7 +54,7 @@ impl CanonDecoder {
         }
 
         Err(DecodingError::RawInfoError(
-            ExifFieldError::field_not_found("thumbnail"),
+            ExifFieldError::field_not_found(ExifNames::THUMBNAIL),
         ))
     }
 }
@@ -105,8 +107,8 @@ fn find_largest_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
 }
 
 fn jpeg_from_exif<'a>(buffer: &'a [u8], info: &ParsedExif) -> Option<&'a [u8]> {
-    let offset = info.usize("thumbnail").ok()?;
-    let len = info.usize("thumbnail_len").ok()?;
+    let offset = info.usize(ExifNames::THUMBNAIL).ok()?;
+    let len = info.usize(ExifNames::THUMBNAIL_LEN).ok()?;
     if offset + len > buffer.len() || len < 4 {
         return None;
     }

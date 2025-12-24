@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::exif::{ExifParsingRule, ExifReader, ParsedExif};
+use crate::rawthumb::core::exif::{ExifNames, ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
@@ -27,23 +27,23 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 });
 
 struct OlympusDecoder {
-    info: ParsedExif,
+    exif: ParsedExif,
 }
 
 impl OlympusDecoder {
-    fn new(info: ParsedExif) -> Self {
-        Self { info }
+    fn new(exif: ParsedExif) -> Self {
+        Self { exif }
     }
 
     fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
-        let base = self.info.usize("maker_notes")?;
-        let offset = self.info.usize("preview_image_start")? + base;
-        let len = self.info.usize("preview_image_len")?;
+        let base = self.exif.usize(ExifNames::MAKER_NOTES)?;
+        let offset = self.exif.usize(ExifNames::PREVIEW_IMAGE_START)? + base;
+        let len = self.exif.usize(ExifNames::PREVIEW_IMAGE_LEN)?;
         Ok(&buffer[offset..offset + len])
     }
 
     fn get_orientation(&self) -> Orientation {
-        match self.info.u16("orientation").ok() {
+        match self.exif.u16(ExifNames::ORIENTATION).ok() {
             None => Orientation::Horizontal,
             Some(o) => match o {
                 1 => Orientation::Horizontal,
