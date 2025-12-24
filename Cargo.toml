@@ -5,3 +5,7 @@ edition = "2024"
 description = "Fast, extensible RAW thumbnail and preview extractor"
 
 [dependencies]
+thiserror = "2.0.17"
+quickexif = "0.1"
+anyhow = "1.0"
+once_cell = "1.21"

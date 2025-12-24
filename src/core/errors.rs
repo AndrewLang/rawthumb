@@ -1,0 +1,27 @@
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Not implemented: {0}")]
+    Unimplemented(&'static str),
+    #[error(transparent)]
+    ExifParse(#[from] quickexif::parser::Error),
+    #[error(transparent)]
+    Decode(#[from] DecodingError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Raw(String),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(thiserror::Error, Debug)]
+pub enum DecodingError {
+    #[error("Decoding error.")]
+    RawInfoError(#[from] quickexif::parsed_info::Error),
+    #[error("The decoded image size({0}) is invalid due to the width x height = {1}.")]
+    InvalidDecodedImageSize(usize, usize),
+    #[error("JPEG error.")]
+    LJPEGError(String),
+}
