@@ -15,17 +15,12 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     })
 });
 
-struct PanasonicDecoder {
-    exif: ParsedExif,
-}
+#[derive(Default)]
+struct PanasonicDecoder;
 
 impl PanasonicDecoder {
-    fn new(exif: ParsedExif) -> Self {
-        Self { exif }
-    }
-
-    fn get_orientation(&self) -> Orientation {
-        match self.exif.u16(ExifNames::ORIENTATION).ok() {
+    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
+        match exif.u16(ExifNames::ORIENTATION).ok() {
             None => Orientation::Horizontal,
             Some(o) => match o {
                 1 => Orientation::Horizontal,
@@ -37,15 +32,22 @@ impl PanasonicDecoder {
         }
     }
 
-    fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
-        let offset = self.exif.usize(ExifNames::THUMBNAIL)?;
-        let len = self.exif.usize(ExifNames::THUMBNAIL_LEN)?;
+    fn get_thumbnail<'a>(
+        &self,
+        buffer: &'a [u8],
+        exif: &ParsedExif,
+    ) -> std::result::Result<&'a [u8], DecodingError> {
+        let offset = exif.usize(ExifNames::THUMBNAIL)?;
+        let len = exif.usize(ExifNames::THUMBNAIL_LEN)?;
         Ok(&buffer[offset..offset + len])
     }
 }
 
 #[allow(dead_code)]
-pub struct PanasonicThumbnailExtractor;
+#[derive(Default)]
+pub struct PanasonicThumbnailExtractor {
+    decoder: PanasonicDecoder,
+}
 
 impl ThumbnailExtractor for PanasonicThumbnailExtractor {
     fn supports_make(&self, make: &str) -> bool {
@@ -60,9 +62,8 @@ impl ThumbnailExtractor for PanasonicThumbnailExtractor {
         parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
-        let decoder = PanasonicDecoder::new(raw_info);
-        let thumbnail = decoder.get_thumbnail(buffer)?;
-        let orientation: Orientation = decoder.get_orientation().into();
+        let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
+        let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
         Ok(ThumbnailResult {
             jpeg: thumbnail,
             orientation,

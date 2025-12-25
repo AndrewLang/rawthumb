@@ -30,19 +30,18 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     })
 });
 
-struct OlympusDecoder {
-    exif: ParsedExif,
-}
+#[derive(Default)]
+struct OlympusDecoder;
 
 impl OlympusDecoder {
-    fn new(exif: ParsedExif) -> Self {
-        Self { exif }
-    }
-
-    fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
-        let base = self.exif.usize(ExifNames::MAKER_NOTES)?;
-        let offset = self.exif.usize(ExifNames::PREVIEW_IMAGE_START)? + base;
-        let len = self.exif.usize(ExifNames::PREVIEW_IMAGE_LEN)?;
+    fn get_thumbnail<'a>(
+        &self,
+        buffer: &'a [u8],
+        exif: &ParsedExif,
+    ) -> std::result::Result<&'a [u8], DecodingError> {
+        let base = exif.usize(ExifNames::MAKER_NOTES)?;
+        let offset = exif.usize(ExifNames::PREVIEW_IMAGE_START)? + base;
+        let len = exif.usize(ExifNames::PREVIEW_IMAGE_LEN)?;
         let end = offset
             .checked_add(len)
             .filter(|end| *end <= buffer.len())
@@ -50,8 +49,8 @@ impl OlympusDecoder {
         Ok(&buffer[offset..end])
     }
 
-    fn get_orientation(&self) -> Orientation {
-        match self.exif.u16(ExifNames::ORIENTATION).ok() {
+    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
+        match exif.u16(ExifNames::ORIENTATION).ok() {
             None => Orientation::Horizontal,
             Some(o) => match o {
                 1 => Orientation::Horizontal,
@@ -65,7 +64,10 @@ impl OlympusDecoder {
 }
 
 #[allow(dead_code)]
-pub struct OlympusThumbnailExtractor;
+#[derive(Default)]
+pub struct OlympusThumbnailExtractor {
+    decoder: OlympusDecoder,
+}
 
 impl ThumbnailExtractor for OlympusThumbnailExtractor {
     fn supports_make(&self, make: &str) -> bool {
@@ -113,10 +115,9 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
             }
         };
         log::debug!("Olympus extracted raw_info: {}", raw_info.debug_summary());
-        let decoder = OlympusDecoder::new(raw_info);
-        match decoder.get_thumbnail(buffer) {
+        match self.decoder.get_thumbnail(buffer, &raw_info) {
             Ok(thumbnail) => {
-                let orientation: Orientation = decoder.get_orientation().into();
+                let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
                 Ok(ThumbnailResult {
                     jpeg: thumbnail,
                     orientation,

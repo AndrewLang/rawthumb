@@ -16,23 +16,22 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     })
 });
 
-struct SonyDecoder {
-    exif: ParsedExif,
-}
+#[derive(Default)]
+struct SonyDecoder;
 
 impl SonyDecoder {
-    fn new(exif: ParsedExif) -> Self {
-        Self { exif }
-    }
-
-    fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
-        let offset = self.exif.usize(ExifNames::PREVIEW_OFFSET)?;
-        let len = self.exif.usize(ExifNames::PREVIEW_LEN)?;
+    fn get_thumbnail<'a>(
+        &self,
+        buffer: &'a [u8],
+        exif: &ParsedExif,
+    ) -> std::result::Result<&'a [u8], DecodingError> {
+        let offset = exif.usize(ExifNames::PREVIEW_OFFSET)?;
+        let len = exif.usize(ExifNames::PREVIEW_LEN)?;
         Ok(&buffer[offset..offset + len])
     }
 
-    fn get_orientation(&self) -> Orientation {
-        match self.exif.u16(ExifNames::ORIENTATION).ok() {
+    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
+        match exif.u16(ExifNames::ORIENTATION).ok() {
             None => Orientation::Horizontal,
             Some(o) => match o {
                 1 => Orientation::Horizontal,
@@ -46,7 +45,10 @@ impl SonyDecoder {
 }
 
 #[allow(dead_code)]
-pub struct SonyThumbnailExtractor;
+#[derive(Default)]
+pub struct SonyThumbnailExtractor {
+    decoder: SonyDecoder,
+}
 
 impl ThumbnailExtractor for SonyThumbnailExtractor {
     fn supports_make(&self, make: &str) -> bool {
@@ -61,9 +63,8 @@ impl ThumbnailExtractor for SonyThumbnailExtractor {
         parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
-        let decoder = SonyDecoder::new(raw_info);
-        let thumbnail = decoder.get_thumbnail(buffer)?;
-        let orientation: Orientation = decoder.get_orientation().into();
+        let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
+        let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
         Ok(ThumbnailResult {
             jpeg: thumbnail,
             orientation,

@@ -39,12 +39,12 @@ impl MakerRegistry {
 // Explicit order for maker selection: Nikon, Sony, Panasonic, Olympus, Fuji, Canon, Adobe (DNG).
 pub static MAKER_REGISTRY: Lazy<MakerRegistry> = Lazy::new(|| {
     MakerRegistry::new(ThumbnailRegistry::new(vec![
-        Arc::new(NikonThumbnailExtractor),
-        Arc::new(SonyThumbnailExtractor),
-        Arc::new(PanasonicThumbnailExtractor),
-        Arc::new(OlympusThumbnailExtractor),
-        Arc::new(FujiThumbnailExtractor),
-        Arc::new(CanonThumbnailExtractor),
-        Arc::new(AdobeThumbnailExtractor),
+        Arc::new(NikonThumbnailExtractor::default()),
+        Arc::new(SonyThumbnailExtractor::default()),
+        Arc::new(PanasonicThumbnailExtractor::default()),
+        Arc::new(OlympusThumbnailExtractor::default()),
+        Arc::new(FujiThumbnailExtractor::default()),
+        Arc::new(CanonThumbnailExtractor::default()),
+        Arc::new(AdobeThumbnailExtractor::default()),
     ]))
 });
