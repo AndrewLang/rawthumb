@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use once_cell::sync::Lazy;
+use std::borrow::Cow;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, ImageProcessingError, Result};
@@ -10,7 +12,6 @@ use crate::rawthumb::core::exif::{
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     describe_exif_rule!(tiff {
@@ -96,7 +97,7 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
         let raw_info = match parse_result {
             Ok(Ok(info)) => info,
             Ok(Err(ExifError::Parse(quickexif::parser::Error::TagNotFound(tag)))) => {
-                log::debug!(
+                log::trace!(
                     "Olympus maker note tag 0x{tag:04x} missing; falling back to JPEG scan"
                 );
                 return Self::fallback_thumbnail(buffer, exif);
@@ -113,7 +114,11 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                 return Self::fallback_thumbnail(buffer, exif);
             }
         };
-        log::debug!("Olympus extracted raw_info: {}", raw_info.debug_summary());
+
+        log::trace!(
+            " 🪓 Olympus extracted raw_info: {}",
+            raw_info.debug_summary()
+        );
         match self.decoder.get_thumbnail(buffer, &raw_info) {
             Ok(thumbnail) => {
                 if thumbnail.len() >= 8 * 1024
@@ -122,7 +127,7 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                 {
                     let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
                     Ok(ThumbnailResult {
-                        jpeg: thumbnail,
+                        jpeg: Cow::Borrowed(thumbnail),
                         orientation,
                     })
                 } else {
@@ -165,17 +170,20 @@ impl OlympusThumbnailExtractor {
                     Some(8) => Orientation::Rotate270,
                     _ => Orientation::Horizontal,
                 };
-                return Ok(ThumbnailResult { jpeg, orientation });
+                return Ok(ThumbnailResult {
+                    jpeg: Cow::Borrowed(jpeg),
+                    orientation,
+                });
             }
         }
-        if let Some(jpeg) =
-            ImageHelper::extract_best_jpeg_capped(buffer, 128 * 1024 * 1024).filter(|j| valid(j))
-                .or_else(|| {
-                    ImageHelper::extract_largest_jpeg_segment_capped(buffer, 128 * 1024 * 1024)
-                        .filter(|j| valid(j))
-                })
-                .or_else(|| ImageHelper::extract_best_jpeg(buffer).filter(|j| valid(j)))
-                .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer).filter(|j| valid(j)))
+        if let Some(jpeg) = ImageHelper::extract_best_jpeg_capped(buffer, 128 * 1024 * 1024)
+            .filter(|j| valid(j))
+            .or_else(|| {
+                ImageHelper::extract_largest_jpeg_segment_capped(buffer, 128 * 1024 * 1024)
+                    .filter(|j| valid(j))
+            })
+            .or_else(|| ImageHelper::extract_best_jpeg(buffer).filter(|j| valid(j)))
+            .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer).filter(|j| valid(j)))
         {
             let orientation = match exif.get_orientation(buffer) {
                 Some(3) => Orientation::Rotate180,
@@ -183,7 +191,10 @@ impl OlympusThumbnailExtractor {
                 Some(8) => Orientation::Rotate270,
                 _ => Orientation::Horizontal,
             };
-            return Ok(ThumbnailResult { jpeg, orientation });
+            return Ok(ThumbnailResult {
+                jpeg: Cow::Borrowed(jpeg),
+                orientation,
+            });
         }
         Err(ImageProcessingError::Raw(
             "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),

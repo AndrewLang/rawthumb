@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::borrow::Cow;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Orientation {
     Horizontal = 0,
@@ -17,6 +19,6 @@ pub struct RawMetadata {
 }
 
 pub struct ThumbnailResult<'a> {
-    pub jpeg: &'a [u8],
+    pub jpeg: Cow<'a, [u8]>,
     pub orientation: Orientation,
 }

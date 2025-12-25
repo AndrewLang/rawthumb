@@ -65,7 +65,7 @@ fn export_thumbnail_public_api_smoke() -> Result<(), Box<dyn std::error::Error>>
             .with_extension("jpg");
         let output_path_str = output_path.to_string_lossy().to_string();
         let exporter = rawthumb::ThumbnailExporter::new();
-        exporter.export_thumbnail_to_file(&raw_bytes, &output_path_str)?;
+        exporter.export_thumbnail_to_file(raw_path.to_str().unwrap(), &output_path_str)?;
 
         let written = fs::read(&output_path)?;
         assert!(

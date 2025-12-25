@@ -12,6 +12,9 @@ once_cell = "1.21"
 tempfile = "3.24"
 log = "0.4"
 memchr = "2"
+turbojpeg = "1.3.3"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+memmap2 = "0.9"
 
 [dev-dependencies]
 env_logger = "0.11"

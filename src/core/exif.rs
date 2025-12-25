@@ -73,7 +73,14 @@ pub struct ParsedExif {
 
 impl ParsedExif {
     pub fn debug_summary(&self) -> String {
-        format!("ParsedExif(fields={})", self.inner.stringify_all().unwrap_or_default().lines().count())
+        format!(
+            "ParsedExif(fields={})",
+            self.inner
+                .stringify_all()
+                .unwrap_or_default()
+                .lines()
+                .count()
+        )
     }
     pub fn u16(&self, name: &str) -> ExifFieldResult<u16> {
         self.inner.u16(name).map_err(ExifFieldError::from)

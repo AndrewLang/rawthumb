@@ -1,29 +1,36 @@
 #![allow(dead_code)]
 
+use crate::rawthumb::core::exif::{ExifReader, QuickExifReader};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::types::{Orientation, ThumbnailResult};
 use crate::rawthumb::formats::format_processor::FormatPreprocessor;
+use std::borrow::Cow;
 
-pub struct Cr3Processor;
-
-impl FormatPreprocessor for Cr3Processor {
-    fn try_extract<'a>(&self, buffer: &'a [u8]) -> Option<ThumbnailResult<'a>> {
-        let is_cr3 = buffer.get(4..12).map(|b| b == b"ftypcrx ").unwrap_or(false);
-        if !is_cr3 {
-            return None;
-        }
-
-        // Fast-path: grab the first reasonably sized JPEG with a SOF marker within 32 MiB of the start.
-        let jpeg = Self::fast_first_valid_jpeg(buffer, 32 * 1024 * 1024, 64 * 1024)
-            .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))?;
-        Some(ThumbnailResult {
-            jpeg,
-            orientation: Orientation::Horizontal,
-        })
-    }
+pub struct Cr3Processor {
+    exif: QuickExifReader,
 }
 
 impl Cr3Processor {
+    pub fn new() -> Self {
+        Self {
+            exif: QuickExifReader::new(),
+        }
+    }
+
+    fn read_orientation(&self, raw: &[u8], jpeg: &[u8]) -> Orientation {
+        let orientation = self
+            .exif
+            .get_orientation(raw)
+            .or_else(|| self.exif.get_orientation(jpeg));
+
+        match orientation {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        }
+    }
+
     fn fast_first_valid_jpeg<'a>(
         buffer: &'a [u8],
         max_scan_bytes: usize,
@@ -52,5 +59,24 @@ impl Cr3Processor {
         }
 
         None
+    }
+}
+
+impl FormatPreprocessor for Cr3Processor {
+    fn try_extract<'a>(&self, buffer: &'a [u8]) -> Option<ThumbnailResult<'a>> {
+        let is_cr3 = buffer.get(4..12).map(|b| b == b"ftypcrx ").unwrap_or(false);
+        if !is_cr3 {
+            return None;
+        }
+
+        // Fast-path: grab the first reasonably sized JPEG with a SOF marker within 32 MiB of the start.
+        let jpeg = Self::fast_first_valid_jpeg(buffer, 32 * 1024 * 1024, 64 * 1024)
+            .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))?;
+        let orientation = self.read_orientation(buffer, jpeg);
+
+        Some(ThumbnailResult {
+            jpeg: Cow::Borrowed(jpeg),
+            orientation,
+        })
     }
 }

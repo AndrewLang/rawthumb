@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use once_cell::sync::Lazy;
+use std::borrow::Cow;
 
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
@@ -78,7 +79,7 @@ impl ThumbnailExtractor for CanonThumbnailExtractor {
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
         let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
         Ok(ThumbnailResult {
-            jpeg: thumbnail,
+            jpeg: Cow::Borrowed(thumbnail),
             orientation,
         })
     }

@@ -159,9 +159,8 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
-        root.join("Canon")
-            .join("EOS R")
-            .join("Canon-eos-r-raw-00004.cr3"),
+        root.join("Canon/EOS R/Canon-eos-r-raw-00004.cr3"),
+        root.join("Canon/EOS R/Canon-eos-r-raw-00019.cr3"),
         root.join("Sony")
             .join("A1")
             .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06683.dng"),
@@ -239,7 +238,6 @@ fn process_file(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
     log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
-    let raw_bytes = fs::read(path)?;
 
     // Build an output path that mirrors the input structure and uses .jpg extension.
     let relative = path.strip_prefix(root).unwrap_or(path);
@@ -249,7 +247,7 @@ fn process_file(
     }
 
     let output_path_str = output_path.to_string_lossy().to_string();
-    exporter.export_thumbnail_to_file(&raw_bytes, &output_path_str)?;
+    exporter.export_thumbnail_to_file(path.to_str().unwrap(), &output_path_str)?;
 
     // Basic validation of the output JPEG.
     let output_bytes = fs::read(&output_path)?;

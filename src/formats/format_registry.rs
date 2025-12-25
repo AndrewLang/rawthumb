@@ -33,5 +33,9 @@ impl FormatRegistry {
     }
 }
 
-pub static FORMAT_REGISTRY: Lazy<FormatRegistry> =
-    Lazy::new(|| FormatRegistry::new(vec![Arc::new(FujiPreprocessor), Arc::new(Cr3Processor)]));
+pub static FORMAT_REGISTRY: Lazy<FormatRegistry> = Lazy::new(|| {
+    FormatRegistry::new(vec![
+        Arc::new(FujiPreprocessor),
+        Arc::new(Cr3Processor::new()),
+    ])
+});

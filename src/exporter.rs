@@ -3,6 +3,7 @@
 use std::fs;
 use std::sync::Arc;
 
+use crate::export_config::ExportConfig;
 use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
 use crate::rawthumb::core::exif::{ExifError, ExifReader, ParsedExif, QuickExifReader};
 use crate::rawthumb::core::image_helper::ImageHelper;
@@ -10,24 +11,46 @@ use crate::rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 use crate::rawthumb::formats::format_registry::FORMAT_REGISTRY;
 use crate::rawthumb::makers::maker_registry::MAKER_REGISTRY;
+use memmap2::MmapOptions;
+use std::borrow::Cow;
 
 pub struct ThumbnailExporter {
     exif_reader: Arc<dyn ExifReader>,
+    config: ExportConfig,
 }
 
 impl ThumbnailExporter {
     pub fn new() -> Self {
         Self {
             exif_reader: Arc::new(QuickExifReader::new()),
+            config: ExportConfig::default(),
         }
     }
 
     pub fn new_with_exif(exif: Arc<dyn ExifReader>) -> Self {
-        Self { exif_reader: exif }
+        Self {
+            exif_reader: exif,
+            config: ExportConfig::default(),
+        }
+    }
+
+    pub fn new_with_config(config: ExportConfig) -> Self {
+        Self {
+            exif_reader: Arc::new(QuickExifReader::new()),
+            config,
+        }
+    }
+
+    pub fn new_with_exif_and_config(exif: Arc<dyn ExifReader>, config: ExportConfig) -> Self {
+        Self {
+            exif_reader: exif,
+            config,
+        }
     }
 
     pub fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> CoreResult<ThumbnailResult<'a>> {
-        self.decode_thumbnail(buffer)
+        let result = self.decode_thumbnail(buffer)?;
+        self.apply_auto_rotate(result)
     }
 
     pub fn export_thumbnail_data(&self, buffer: &[u8]) -> CoreResult<Vec<u8>> {
@@ -35,9 +58,12 @@ impl ThumbnailExporter {
         Ok(thumb.jpeg.to_vec())
     }
 
-    pub fn export_thumbnail_to_file(&self, buffer: &[u8], path: &str) -> CoreResult<()> {
-        let thumb = self.get_thumbnail(buffer)?;
-        fs::write(path, thumb.jpeg)?;
+    pub fn export_thumbnail_to_file(&self, input_path: &str, output_path: &str) -> CoreResult<()> {
+        // Prefer mmap to avoid an extra heap copy for large RAW files.
+        let file = fs::File::open(input_path)?;
+        let mmap = unsafe { MmapOptions::new().map(&file)? };
+        let thumb = self.get_thumbnail(&mmap)?;
+        fs::write(output_path, thumb.jpeg)?;
         Ok(())
     }
 
@@ -60,7 +86,7 @@ impl ThumbnailExporter {
             Ok(Err(e)) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
                     Ok(ThumbnailResult {
-                        jpeg,
+                        jpeg: Cow::Borrowed(jpeg),
                         orientation: Orientation::Horizontal,
                     })
                 } else {
@@ -70,7 +96,7 @@ impl ThumbnailExporter {
             Err(_) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
                     Ok(ThumbnailResult {
-                        jpeg,
+                        jpeg: Cow::Borrowed(jpeg),
                         orientation: Orientation::Horizontal,
                     })
                 } else {
@@ -106,7 +132,7 @@ impl ThumbnailExporter {
                 .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
                 {
                     Ok(ThumbnailResult {
-                        jpeg,
+                        jpeg: Cow::Borrowed(jpeg),
                         orientation: Orientation::Horizontal,
                     })
                 } else {
@@ -124,7 +150,29 @@ impl ThumbnailExporter {
             .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
             .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))
     }
+
+    fn apply_auto_rotate<'a>(
+        &self,
+        result: ThumbnailResult<'a>,
+    ) -> CoreResult<ThumbnailResult<'a>> {
+        if !self.config.auto_rotate || result.orientation == Orientation::Horizontal {
+            return Ok(result);
+        }
+
+        log::trace!(
+            "🔄 Auto-rotating thumbnail with orientation {:?}",
+            result.orientation
+        );
+
+        let rotated = self
+            .config
+            .rotator
+            .rotate(result.jpeg.as_ref(), result.orientation)?;
+        Ok(ThumbnailResult {
+            jpeg: Cow::Owned(rotated),
+            orientation: Orientation::Horizontal,
+        })
+    }
 }
 
-// Transitional alias for existing callers.
 pub type Exporter = ThumbnailExporter;
