@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
-use crate::rawthumb::core::exif::{ExifReader, ParsedExif, QuickExifReader};
+use crate::rawthumb::core::exif::{ExifError, ExifReader, ParsedExif, QuickExifReader};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
@@ -65,8 +65,26 @@ impl ThumbnailDecoder {
             ImageProcessingError::Raw(format!("Maker is not supported: {}", metadata.make))
         })?;
 
-        extractor
-            .extract(buffer, &metadata, self.exif.as_ref(), basic_parsed)
-            .map_err(ImageProcessingError::from)
+        match extractor.extract(buffer, &metadata, self.exif.as_ref(), basic_parsed) {
+            Ok(res) => Ok(res),
+            Err(ImageProcessingError::ExifParse(ExifError::Parse(
+                quickexif::parser::Error::TagNotFound(_),
+            ))) => {
+                if let Some(jpeg) =
+                    ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 16 * 1024, true)
+                        .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
+                {
+                    Ok(ThumbnailResult {
+                        jpeg,
+                        orientation: Orientation::Horizontal,
+                    })
+                } else {
+                    Err(ImageProcessingError::Raw(
+                        "Fallback JPEG scan failed after missing EXIF tag".to_string(),
+                    ))
+                }
+            }
+            Err(e) => Err(ImageProcessingError::from(e)),
+        }
     }
 }

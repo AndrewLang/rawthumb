@@ -51,24 +51,53 @@ impl ImageHelper {
     }
 
     pub fn extract_largest_jpeg_segment(buffer: &[u8]) -> Option<&[u8]> {
-        let mut start = 0usize;
+        Self::extract_largest_jpeg_segment_capped(buffer, buffer.len())
+    }
+
+    pub fn extract_largest_jpeg_segment_capped<'a>(
+        buffer: &'a [u8],
+        max_scan_bytes: usize,
+    ) -> Option<&'a [u8]> {
+        let scan_end = buffer.len().min(max_scan_bytes);
+        let mut cursor = 0usize;
         let mut best: Option<(usize, usize)> = None;
-        while let Some(rel_soi) = buffer[start..]
-            .windows(3)
-            .position(|w| w == [0xff, 0xd8, 0xff])
-        {
-            let soi = start + rel_soi;
-            if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
-                let end = soi + 3 + rel_eoi + 2;
-                let len = end - soi;
-                if best.map(|(_, b_len)| len > b_len).unwrap_or(true) {
-                    best = Some((soi, len));
+
+        while cursor < scan_end {
+            let rel_ff = memchr(0xff, &buffer[cursor..scan_end])?;
+            let soi = cursor + rel_ff;
+            if soi + 1 >= scan_end || buffer[soi + 1] != 0xd8 {
+                cursor = soi + 1;
+                continue;
+            }
+
+            // find EOI
+            if let Some(rel_ff2) = memchr(0xff, &buffer[soi + 2..]) {
+                let mut idx = soi + 2 + rel_ff2;
+                loop {
+                    if idx + 1 >= buffer.len() {
+                        break;
+                    }
+                    if buffer[idx + 1] == 0xd9 {
+                        let end = idx + 2;
+                        let len = end - soi;
+                        if best.map(|(_, b_len)| len > b_len).unwrap_or(true) {
+                            best = Some((soi, len));
+                        }
+                        cursor = end;
+                        break;
+                    }
+                    if let Some(next_ff) = memchr(0xff, &buffer[idx + 2..]) {
+                        idx = idx + 2 + next_ff;
+                    } else {
+                        cursor = scan_end;
+                        break;
+                    }
                 }
-                start = end;
             } else {
                 break;
             }
         }
+
         best.map(|(s, l)| &buffer[s..s + l])
     }
 
@@ -153,74 +182,64 @@ impl ImageHelper {
     }
 
     pub fn extract_best_jpeg(buffer: &[u8]) -> Option<&[u8]> {
-        let len = buffer.len();
-        let mut i = 0;
+        Self::extract_best_jpeg_capped(buffer, buffer.len())
+    }
 
-        let mut best_start = 0;
-        let mut best_end = 0;
-        let mut best_size = 0;
+    pub fn extract_best_jpeg_capped<'a>(
+        buffer: &'a [u8],
+        max_scan_bytes: usize,
+    ) -> Option<&'a [u8]> {
+        let scan_end = buffer.len().min(max_scan_bytes);
+        let mut cursor = 0usize;
+        let mut best: Option<(usize, usize)> = None;
 
-        while i + 1 < len {
-            if buffer[i] == 0xFF && buffer[i + 1] == 0xD8 {
-                let start = i;
-                let mut j = i + 2;
-                let mut has_sof = false;
+        while cursor < scan_end {
+            let rel_ff = memchr(0xff, &buffer[cursor..scan_end])?;
+            let soi = cursor + rel_ff;
+            if soi + 1 >= scan_end || buffer[soi + 1] != 0xd8 {
+                cursor = soi + 1;
+                continue;
+            }
 
-                while j + 1 < len {
-                    if buffer[j] != 0xFF {
-                        j += 1;
-                        continue;
-                    }
-
-                    let marker = buffer[j + 1];
-
-                    if matches!(marker, 0xC0 | 0xC1 | 0xC2) {
-                        has_sof = true;
-                    }
-
-                    if marker == 0xD9 {
-                        let end = j + 2;
-                        let size = end - start;
-
-                        if has_sof && size > best_size {
-                            best_start = start;
-                            best_end = end;
-                            best_size = size;
-                        }
-
-                        i = end;
-                        break;
-                    }
-
-                    if (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
-                        j += 2;
-                        continue;
-                    }
-
-                    if j + 3 >= len {
-                        break;
-                    }
-
-                    let seg_len = u16::from_be_bytes([buffer[j + 2], buffer[j + 3]]) as usize;
-
-                    if seg_len < 2 {
-                        break;
-                    }
-
-                    j += 2 + seg_len;
+            let mut has_sof = false;
+            let mut idx = soi + 2;
+            loop {
+                if idx + 1 >= buffer.len() {
+                    break;
                 }
-
-                i += 2;
-            } else {
-                i += 1;
+                if buffer[idx] != 0xff {
+                    idx += 1;
+                    continue;
+                }
+                let marker = buffer[idx + 1];
+                if matches!(marker, 0xC0 | 0xC1 | 0xC2) {
+                    has_sof = true;
+                }
+                if marker == 0xd9 {
+                    let end = idx + 2;
+                    let len = end - soi;
+                    if has_sof && best.map(|(_, b_len)| len > b_len).unwrap_or(true) {
+                        best = Some((soi, len));
+                    }
+                    cursor = end;
+                    break;
+                }
+                if (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
+                    idx += 2;
+                    continue;
+                }
+                if idx + 3 >= buffer.len() {
+                    break;
+                }
+                let seg_len = u16::from_be_bytes([buffer[idx + 2], buffer[idx + 3]]) as usize;
+                if seg_len < 2 {
+                    break;
+                }
+                idx += 2 + seg_len;
             }
         }
 
-        if best_size > 0 {
-            Some(&buffer[best_start..best_end])
-        } else {
-            None
-        }
+        best.map(|(s, l)| &buffer[s..s + l])
     }
 
     pub fn find_largest_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
@@ -334,7 +353,7 @@ impl ImageHelper {
     }
 
     pub fn is_valid_jpeg(slice: &[u8]) -> bool {
-        if slice.len() < 1024 {
+        if slice.len() < 256 {
             return false;
         }
 

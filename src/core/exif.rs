@@ -150,14 +150,14 @@ static BASIC_INFO_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
                     r64 + 6 / c6
                     r64 + 7 / c7
                     r64 + 8 / c8
-                }
-            } else {
-                0xc621 { // for Apple ProRaw
-                    r64 + 0 / c0
-                    r64 + 1 / c1
-                    r64 + 2 / c2
-                    r64 + 3 / c3
-                    r64 + 4 / c4
+            }
+        } else {
+            0xc621? { // for Apple ProRaw (optional)
+                r64 + 0 / c0
+                r64 + 1 / c1
+                r64 + 2 / c2
+                r64 + 3 / c3
+                r64 + 4 / c4
                     r64 + 5 / c5
                     r64 + 6 / c6
                     r64 + 7 / c7

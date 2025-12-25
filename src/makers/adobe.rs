@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
 use crate::rawthumb::core::exif::{
-    ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
+    ExifError, ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
 };
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
@@ -196,7 +196,23 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
         exif: &dyn ExifReader,
         parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
-        let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
+        let raw_info = match exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed) {
+            Ok(info) => info,
+            Err(ExifError::Parse(quickexif::parser::Error::TagNotFound(_))) => {
+                let jpeg = AdobeDecoder::quick_jpeg_scan(buffer, 64 * 1024 * 1024, 16 * 1024)
+                    .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
+                    .ok_or_else(|| {
+                        DecodingError::RawInfoError(ExifFieldError::field_not_found(
+                            ExifNames::THUMBNAIL,
+                        ))
+                    })?;
+                return Ok(ThumbnailResult {
+                    jpeg,
+                    orientation: Orientation::Horizontal,
+                });
+            }
+            Err(e) => return Err(e.into()),
+        };
         let thumbnail = self.decoder.get_thumbnail(&raw_info, buffer)?;
         let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
         Ok(ThumbnailResult {
