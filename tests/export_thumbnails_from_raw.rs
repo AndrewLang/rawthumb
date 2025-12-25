@@ -171,6 +171,7 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
         root.join("DJ").join("DJI-mavic-2-pro-raw-00007.dng"),
         root.join("OM System").join("P8206009.ORF"),
         root.join("OM System").join("PA086285.ORF"),
+        root.join("OM System").join("PA016098.ORF"),
     ];
 
     let output_root = PathBuf::from(r"D:\Photos\temp\thumbnails\dng");
