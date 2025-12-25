@@ -2,6 +2,16 @@
 
 pub struct ImageHelper;
 
+pub struct JpegSegment<'a> {
+    pub data: &'a [u8],
+    pub size: usize,
+    pub is_valid_jpeg: bool,
+    pub has_sof: bool,
+    pub start: usize,
+    pub end: usize,
+    pub index: usize,
+}
+
 impl ImageHelper {
     pub fn is_tiff_header(bytes: &[u8]) -> bool {
         matches!(bytes, [0x49, 0x49, 0x2a, 0x00] | [0x4d, 0x4d, 0x00, 0x2a])
@@ -56,5 +66,185 @@ impl ImageHelper {
             }
         }
         best.map(|(s, l)| &buffer[s..s + l])
+    }
+
+    pub fn extract_all_jpeg_segments(buffer: &[u8]) -> Vec<JpegSegment<'_>> {
+        // 🔴 CHANGED: realistic capacity (JPEG segments are few)
+        let mut results = Vec::with_capacity(16);
+
+        let len = buffer.len();
+        let mut i = 0;
+        let mut index = 0;
+
+        while i + 1 < len {
+            // SOI
+            if buffer[i] == 0xFF && buffer[i + 1] == 0xD8 {
+                let start = i;
+                let mut j = i + 2;
+
+                while j + 1 < len {
+                    // Fast skip non-marker bytes
+                    if buffer[j] != 0xFF {
+                        j += 1;
+                        continue;
+                    }
+
+                    let marker = buffer[j + 1];
+
+                    // EOI
+                    if marker == 0xD9 {
+                        let end = j + 2;
+                        let slice = &buffer[start..end];
+
+                        // 🔴 CHANGED: DO NOT validate here (defer!)
+                        results.push(JpegSegment {
+                            // 🔴 CHANGED: no Vec allocation
+                            data: slice,
+                            size: end - start,
+                            is_valid_jpeg: false, // filled later
+                            has_sof: false,       // filled later
+                            start,
+                            end,
+                            index,
+                        });
+
+                        index += 1;
+                        i = end;
+                        break;
+                    }
+
+                    // Restart markers or TEM
+                    if (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
+                        j += 2;
+                        continue;
+                    }
+
+                    // Need length bytes
+                    if j + 3 >= len {
+                        break;
+                    }
+
+                    let seg_len = u16::from_be_bytes([buffer[j + 2], buffer[j + 3]]) as usize;
+
+                    if seg_len < 2 {
+                        break;
+                    }
+
+                    // Jump to next marker
+                    j += 2 + seg_len;
+                }
+
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+
+        // 🔴 CHANGED: validate ONLY once, after extraction
+        for seg in &mut results {
+            let slice = &buffer[seg.start..seg.end];
+            seg.has_sof = Self::jpeg_has_sof(slice);
+            seg.is_valid_jpeg = seg.has_sof && Self::is_valid_jpeg(slice);
+        }
+
+        results
+    }
+
+    pub fn extract_best_jpeg(buffer: &[u8]) -> Option<&[u8]> {
+        let len = buffer.len();
+        let mut i = 0;
+
+        let mut best_start = 0;
+        let mut best_end = 0;
+        let mut best_size = 0;
+
+        while i + 1 < len {
+            if buffer[i] == 0xFF && buffer[i + 1] == 0xD8 {
+                let start = i;
+                let mut j = i + 2;
+                let mut has_sof = false;
+
+                while j + 1 < len {
+                    if buffer[j] != 0xFF {
+                        j += 1;
+                        continue;
+                    }
+
+                    let marker = buffer[j + 1];
+
+                    if matches!(marker, 0xC0 | 0xC1 | 0xC2) {
+                        has_sof = true;
+                    }
+
+                    if marker == 0xD9 {
+                        let end = j + 2;
+                        let size = end - start;
+
+                        if has_sof && size > best_size {
+                            best_start = start;
+                            best_end = end;
+                            best_size = size;
+                        }
+
+                        i = end;
+                        break;
+                    }
+
+                    if (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
+                        j += 2;
+                        continue;
+                    }
+
+                    if j + 3 >= len {
+                        break;
+                    }
+
+                    let seg_len = u16::from_be_bytes([buffer[j + 2], buffer[j + 3]]) as usize;
+
+                    if seg_len < 2 {
+                        break;
+                    }
+
+                    j += 2 + seg_len;
+                }
+
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+
+        if best_size > 0 {
+            Some(&buffer[best_start..best_end])
+        } else {
+            None
+        }
+    }
+
+    pub fn is_valid_jpeg(slice: &[u8]) -> bool {
+        if slice.len() < 1024 {
+            return false;
+        }
+
+        if slice[0] != 0xFF || slice[1] != 0xD8 {
+            return false;
+        }
+
+        if slice[slice.len() - 2] != 0xFF || slice[slice.len() - 1] != 0xD9 {
+            return false;
+        }
+
+        true
+    }
+
+    fn jpeg_has_sof(slice: &[u8]) -> bool {
+        slice.windows(2).any(|w| {
+            matches!(
+                w,
+                [0xFF, 0xC0] | // Baseline
+                [0xFF, 0xC1] | // Extended
+                [0xFF, 0xC2] // Progressive
+            )
+        })
     }
 }

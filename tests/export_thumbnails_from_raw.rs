@@ -127,6 +127,57 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+#[ignore]
+fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let root = PathBuf::from(r"D:\Photos\Brands");
+    let test_files = vec![
+        root.join("Sony")
+            .join("A1")
+            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06683.dng"),
+        root.join("Sony")
+            .join("A1")
+            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06780.dng"),
+        root.join("Sony")
+            .join("A1")
+            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC07073.dng"),
+        root.join("DJ").join("DJI-mavic-2-pro-raw-00005.dng"),
+        root.join("DJ").join("DJI-mavic-2-pro-raw-00008.dng"),
+        root.join("DJ").join("DJI-mavic-2-pro-raw-00007.dng"),
+    ];
+
+    let output_root = PathBuf::from(r"D:\Photos\temp\thumbnails\dng");
+    fs::create_dir_all(&output_root)?;
+
+    let mut successes = 0usize;
+    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+
+    let exporter = rawthumb::Exporter::new();
+    for path in test_files {
+        match process_file(&path, &root, &output_root, &exporter) {
+            Ok(()) => {
+                successes += 1;
+            }
+            Err(e) => {
+                failures.push((path.clone(), e.to_string()));
+            }
+        }
+    }
+
+    println!(
+        " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        successes,
+        failures.len(),
+        output_root,
+        start.elapsed(),
+        start.elapsed() / (successes as u32 + failures.len() as u32)
+    );
+    println!("=========================");
+
+    Ok(())
+}
+
 /// Recursively scan the root directory for RAW files with supported extensions.
 fn scan_supported_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut stack = vec![root.to_path_buf()];
@@ -165,6 +216,7 @@ fn process_file(
     output_root: &Path,
     exporter: &rawthumb::Exporter,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!("➡️  Processing file {}", path.to_string_lossy().to_string());
     let raw_bytes = fs::read(path)?;
 
     // Build an output path that mirrors the input structure and uses .jpg extension.

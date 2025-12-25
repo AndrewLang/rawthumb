@@ -5,4 +5,11 @@ cargo test -- --nocapture --ignored --test export_thumbnails_from_raw export_thu
 
 cargo test -- --nocapture --ignored --test export_thumbnails_from_raw export_thumbnails_test
 
+cargo test -- --nocapture --ignored --test export_thumbnails_from_raw export_thumbnails_from_dng_test
+
 cargo test -- --nocapture --test export_api_characterization export_thumbnail_public_api_smoke
+
+TODO:
+1. Add image scanner
+2. Config for auto rotate
+3. Improve performance for cr3 format

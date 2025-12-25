@@ -22,8 +22,10 @@ pub enum ImageProcessingError {
 pub enum DecodingError {
     #[error("Decoding error.")]
     RawInfoError(#[from] ExifFieldError),
+
     #[error("The decoded image size({0}) is invalid due to the width x height = {1}.")]
     InvalidDecodedImageSize(usize, usize),
+
     #[error("JPEG error.")]
     LJPEGError(String),
 }

@@ -34,7 +34,6 @@ impl ThumbnailDecoder {
     }
 
     fn decode_thumbnail<'a>(&self, buffer: &'a [u8]) -> CoreResult<ThumbnailResult<'a>> {
-        println!("Decoding thumbnail with raw thumb");
         let buffer = FORMAT_REGISTRY.apply_preprocessors(buffer);
 
         if let Some(result) = FORMAT_REGISTRY.try_fast_path(buffer) {
@@ -66,7 +65,8 @@ impl ThumbnailDecoder {
             ImageProcessingError::Raw(format!("Maker is not supported: {}", metadata.make))
         })?;
 
-        extractor.extract(buffer, &metadata, self.exif.as_ref(), basic_parsed)
+        extractor
+            .extract(buffer, &metadata, self.exif.as_ref(), basic_parsed)
             .map_err(ImageProcessingError::from)
     }
 }
