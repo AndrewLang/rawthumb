@@ -40,16 +40,44 @@ impl ThumbnailDecoder {
             return Ok(result);
         }
 
-        match RawMetadataParser::parse_with_cr3_fallback(self.exif.as_ref(), buffer) {
-            Ok((parsed, basic, buf)) => self.select_extractor_and_decode(buf, parsed, basic),
-            Err(e) => {
-                if let Some(jpeg) = ImageHelper::extract_largest_jpeg_segment(buffer) {
+        // quickexif may panic on malformed maker notes; catch and fall back.
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            RawMetadataParser::parse_with_cr3_fallback(self.exif.as_ref(), buffer)
+        }));
+        std::panic::set_hook(previous_hook);
+
+        match parsed {
+            Ok(Ok((parsed, basic, buf))) => self.select_extractor_and_decode(buf, parsed, basic),
+            Ok(Err(e)) => {
+                if let Some(jpeg) =
+                    ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true)
+                        .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
+                        .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))
+                {
                     Ok(ThumbnailResult {
                         jpeg,
                         orientation: Orientation::Horizontal,
                     })
                 } else {
                     Err(e)
+                }
+            }
+            Err(_) => {
+                if let Some(jpeg) =
+                    ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true)
+                        .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
+                        .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))
+                {
+                    Ok(ThumbnailResult {
+                        jpeg,
+                        orientation: Orientation::Horizontal,
+                    })
+                } else {
+                    Err(ImageProcessingError::Raw(
+                        "Panic while parsing EXIF; JPEG fallback failed".to_string(),
+                    ))
                 }
             }
         }

@@ -10,7 +10,7 @@ use crate::rawthumb::core::exif::{
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     describe_exif_rule!(tiff {
@@ -20,8 +20,8 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
                 offset + 12 {
                     0x2020 {
                         offset + maker_notes {
-                            0x0101 / preview_image_start
-                            0x0102 / preview_image_len
+                            0x0101? / preview_image_start
+                            0x0102? / preview_image_len
                         }
                     }
                 }
@@ -40,8 +40,10 @@ impl OlympusDecoder {
         exif: &ParsedExif,
     ) -> std::result::Result<&'a [u8], DecodingError> {
         let base = exif.usize(ExifNames::MAKER_NOTES)?;
-        let offset = exif.usize(ExifNames::PREVIEW_IMAGE_START)? + base;
+        let offset = exif.usize(ExifNames::PREVIEW_IMAGE_START)?;
         let len = exif.usize(ExifNames::PREVIEW_IMAGE_LEN)?;
+        // Maker note offsets are relative to base.
+        let offset = offset + base;
         let end = offset
             .checked_add(len)
             .filter(|end| *end <= buffer.len())
@@ -84,7 +86,6 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
         exif: &dyn ExifReader,
         parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
-        // quickexif may panic on malformed maker note offsets; silence the panic hook and fall back gracefully.
         let previous_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));
         let parse_result = catch_unwind(AssertUnwindSafe(|| {
@@ -108,20 +109,28 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                 return Self::fallback_thumbnail(buffer, exif);
             }
             Err(_) => {
-                log::warn!(
-                    "Olympus maker note parse panicked; falling back to JPEG scan"
-                );
+                log::warn!("Olympus maker note parse panicked; falling back to JPEG scan");
                 return Self::fallback_thumbnail(buffer, exif);
             }
         };
         log::debug!("Olympus extracted raw_info: {}", raw_info.debug_summary());
         match self.decoder.get_thumbnail(buffer, &raw_info) {
             Ok(thumbnail) => {
-                let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
-                Ok(ThumbnailResult {
-                    jpeg: thumbnail,
-                    orientation,
-                })
+                if thumbnail.len() >= 8 * 1024
+                    && ImageHelper::is_valid_jpeg(thumbnail)
+                    && ImageHelper::jpeg_has_sof(thumbnail)
+                {
+                    let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
+                    Ok(ThumbnailResult {
+                        jpeg: thumbnail,
+                        orientation,
+                    })
+                } else {
+                    log::warn!(
+                        "Olympus maker-note thumbnail failed validation; falling back to JPEG scan"
+                    );
+                    Self::fallback_thumbnail(buffer, exif)
+                }
             }
             Err(e) => {
                 log::warn!(
@@ -135,33 +144,49 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
 }
 
 impl OlympusThumbnailExtractor {
-fn fallback_thumbnail<'a>(
-    buffer: &'a [u8],
-    exif: &dyn ExifReader,
-) -> Result<ThumbnailResult<'a>> {
-    // Try a capped fast scan first to avoid scanning huge buffers.
-    if let Some(jpeg) =
-        ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 16 * 1024, true)
-    {
-        let orientation = match exif.get_orientation(buffer) {
-            Some(3) => Orientation::Rotate180,
-            Some(6) => Orientation::Rotate90,
-            Some(8) => Orientation::Rotate270,
-            _ => Orientation::Horizontal,
+    fn fallback_thumbnail<'a>(
+        buffer: &'a [u8],
+        exif: &dyn ExifReader,
+    ) -> Result<ThumbnailResult<'a>> {
+        let valid = |jpeg: &[u8]| {
+            jpeg.len() >= 8 * 1024
+                && ImageHelper::is_valid_jpeg(jpeg)
+                && ImageHelper::jpeg_has_sof(jpeg)
         };
-        return Ok(ThumbnailResult { jpeg, orientation });
+
+        // Try a capped fast scan first to avoid scanning huge buffers.
+        if let Some(jpeg) =
+            ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 32 * 1024, true)
+        {
+            if valid(jpeg) {
+                let orientation = match exif.get_orientation(buffer) {
+                    Some(3) => Orientation::Rotate180,
+                    Some(6) => Orientation::Rotate90,
+                    Some(8) => Orientation::Rotate270,
+                    _ => Orientation::Horizontal,
+                };
+                return Ok(ThumbnailResult { jpeg, orientation });
+            }
+        }
+        if let Some(jpeg) =
+            ImageHelper::extract_best_jpeg_capped(buffer, 128 * 1024 * 1024).filter(|j| valid(j))
+                .or_else(|| {
+                    ImageHelper::extract_largest_jpeg_segment_capped(buffer, 128 * 1024 * 1024)
+                        .filter(|j| valid(j))
+                })
+                .or_else(|| ImageHelper::extract_best_jpeg(buffer).filter(|j| valid(j)))
+                .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer).filter(|j| valid(j)))
+        {
+            let orientation = match exif.get_orientation(buffer) {
+                Some(3) => Orientation::Rotate180,
+                Some(6) => Orientation::Rotate90,
+                Some(8) => Orientation::Rotate270,
+                _ => Orientation::Horizontal,
+            };
+            return Ok(ThumbnailResult { jpeg, orientation });
+        }
+        Err(ImageProcessingError::Raw(
+            "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
+        ))
     }
-    if let Some(jpeg) = ImageHelper::extract_largest_jpeg_segment(buffer) {
-        let orientation = match exif.get_orientation(buffer) {
-            Some(3) => Orientation::Rotate180,
-            Some(6) => Orientation::Rotate90,
-            Some(8) => Orientation::Rotate270,
-            _ => Orientation::Horizontal,
-        };
-        return Ok(ThumbnailResult { jpeg, orientation });
-    }
-    Err(ImageProcessingError::Raw(
-        "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
-    ))
-}
 }
