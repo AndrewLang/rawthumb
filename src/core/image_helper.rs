@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use memchr::memchr;
+
 use crate::rawthumb::core::exif::{ExifNames, ParsedExif};
 
 pub struct ImageHelper;
@@ -276,6 +278,59 @@ impl ImageHelper {
                 }
                 None
             })
+    }
+
+    pub fn extract_valid_jpeg_with_cap<'a>(
+        buffer: &'a [u8],
+        max_scan_bytes: usize,
+        min_size: usize,
+        require_sof: bool,
+    ) -> Option<&'a [u8]> {
+        let scan_end = buffer.len().min(max_scan_bytes);
+        let mut cursor = 0usize;
+
+        while cursor < scan_end {
+            // Find SOI (0xFF 0xD8)
+            let rel_ff = memchr(0xff, &buffer[cursor..scan_end])?;
+            let soi = cursor + rel_ff;
+            if soi + 1 >= buffer.len() {
+                break;
+            }
+            if buffer[soi + 1] != 0xd8 {
+                cursor = soi + 1;
+                continue;
+            }
+
+            // Find EOI (0xFF 0xD9) after SOI.
+            let mut search = soi + 2;
+            loop {
+                if search >= buffer.len().saturating_sub(1) {
+                    return None;
+                }
+                if let Some(rel_ff2) = memchr(0xff, &buffer[search..]) {
+                    let idx = search + rel_ff2;
+                    if idx + 1 < buffer.len() && buffer[idx + 1] == 0xd9 {
+                        let end = idx + 2;
+                        let slice = &buffer[soi..end];
+                        if slice.len() >= min_size
+                            && Self::is_valid_jpeg(slice)
+                            && (!require_sof || Self::jpeg_has_sof(slice))
+                        {
+                            return Some(slice);
+                        }
+                        cursor = end;
+                        break;
+                    } else {
+                        search = idx + 1;
+                        continue;
+                    }
+                } else {
+                    return None;
+                }
+            }
+        }
+
+        None
     }
 
     pub fn is_valid_jpeg(slice: &[u8]) -> bool {

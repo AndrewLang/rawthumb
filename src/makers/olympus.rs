@@ -135,21 +135,33 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
 }
 
 impl OlympusThumbnailExtractor {
-    fn fallback_thumbnail<'a>(
-        buffer: &'a [u8],
-        exif: &dyn ExifReader,
-    ) -> Result<ThumbnailResult<'a>> {
-        if let Some(jpeg) = ImageHelper::extract_largest_jpeg_segment(buffer) {
-            let orientation = match exif.get_orientation(buffer) {
-                Some(3) => Orientation::Rotate180,
-                Some(6) => Orientation::Rotate90,
-                Some(8) => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            };
-            return Ok(ThumbnailResult { jpeg, orientation });
-        }
-        Err(ImageProcessingError::Raw(
-            "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
-        ))
+fn fallback_thumbnail<'a>(
+    buffer: &'a [u8],
+    exif: &dyn ExifReader,
+) -> Result<ThumbnailResult<'a>> {
+    // Try a capped fast scan first to avoid scanning huge buffers.
+    if let Some(jpeg) =
+        ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 16 * 1024, true)
+    {
+        let orientation = match exif.get_orientation(buffer) {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        };
+        return Ok(ThumbnailResult { jpeg, orientation });
     }
+    if let Some(jpeg) = ImageHelper::extract_largest_jpeg_segment(buffer) {
+        let orientation = match exif.get_orientation(buffer) {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        };
+        return Ok(ThumbnailResult { jpeg, orientation });
+    }
+    Err(ImageProcessingError::Raw(
+        "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
+    ))
+}
 }
