@@ -7,8 +7,7 @@ pub mod makers;
 pub mod rawthumb {
     pub use super::{core, export, formats, makers};
 
-    pub use crate::core::thumbnail_decoder::ThumbnailDecoder;
-    pub use crate::export::Exporter;
+    pub use crate::export::{Exporter, ThumbnailExporter};
 }
 
-pub use export::Exporter;
+pub use export::{Exporter, ThumbnailExporter};

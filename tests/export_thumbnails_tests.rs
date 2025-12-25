@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 use std::time::Instant;
 
+use rawthumb::ThumbnailExporter;
 use rawthumb::core::image_format::ImageFormt;
 
 fn init_logger() {
@@ -57,12 +58,15 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
-    log::debug!(" 🟢 Exporting thumbnails into {:?}", output_root);
+    log::debug!(
+        " 🟢 Exporting thumbnails into {}",
+        output_root.to_string_lossy().to_string()
+    );
 
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
-    let exporter = rawthumb::Exporter::new();
+    let exporter = ThumbnailExporter::new();
     for path in files {
         match process_file(&path, &scan_root, &output_root, &exporter) {
             Ok(()) => {
@@ -120,7 +124,7 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
-    let exporter = rawthumb::Exporter::new();
+    let exporter = ThumbnailExporter::new();
     for path in test_files {
         match process_file(&path, &root, &output_root, &exporter) {
             Ok(()) => {
@@ -181,7 +185,7 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
-    let exporter = rawthumb::Exporter::new();
+    let exporter = ThumbnailExporter::new();
     for path in test_files {
         match process_file(&path, &root, &output_root, &exporter) {
             Ok(()) => {
@@ -231,7 +235,7 @@ fn process_file(
     path: &Path,
     root: &Path,
     output_root: &Path,
-    exporter: &rawthumb::Exporter,
+    exporter: &ThumbnailExporter,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
     log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
