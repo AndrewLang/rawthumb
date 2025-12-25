@@ -5,9 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 use std::time::Instant;
 
-const SUPPORTED_EXTS: &[&str] = &[
-    "cr2", "cr3", "nef", "raf", "arw", "orf", "rw2", "dng", "raw",
-];
+use rawthumb::core::image_format::ImageFormt;
 
 fn init_logger() {
     static INIT: Once = Once::new();
@@ -109,8 +107,8 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
-        root.join("Cannon").join("EOS 90D").join("IMG_4011.cr3"),
-        root.join("Cannon")
+        root.join("Canon").join("EOS 90D").join("IMG_4011.cr3"),
+        root.join("Canon")
             .join("EOS 7D")
             .join("Canon - EOS 7D - RAW (3_2).CR2"),
         root.join("Nikon").join("D500").join("DSC_1284.NEF"),
@@ -157,7 +155,7 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
-        root.join("Cannon")
+        root.join("Canon")
             .join("EOS R")
             .join("Canon-eos-r-raw-00004.cr3"),
         root.join("Sony")
@@ -220,23 +218,13 @@ fn scan_supported_files(root: &Path) -> io::Result<Vec<PathBuf>> {
             let file_type = entry.file_type()?;
             if file_type.is_dir() {
                 stack.push(path);
-            } else if file_type.is_file() && is_supported(&path) {
+            } else if file_type.is_file() && ImageFormt::is_supported_path(&path) {
                 results.push(path);
             }
         }
     }
 
     Ok(results)
-}
-
-fn is_supported(path: &Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| {
-            let lower = ext.to_ascii_lowercase();
-            SUPPORTED_EXTS.iter().any(|e| *e == lower)
-        })
-        .unwrap_or(false)
 }
 
 fn process_file(
