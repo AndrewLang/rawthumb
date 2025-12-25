@@ -157,6 +157,9 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
+        root.join("Cannon")
+            .join("EOS R")
+            .join("Canon-eos-r-raw-00004.cr3"),
         root.join("Sony")
             .join("A1")
             .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06683.dng"),

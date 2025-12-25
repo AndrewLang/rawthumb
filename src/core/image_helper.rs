@@ -69,7 +69,6 @@ impl ImageHelper {
     }
 
     pub fn extract_all_jpeg_segments(buffer: &[u8]) -> Vec<JpegSegment<'_>> {
-        // 🔴 CHANGED: realistic capacity (JPEG segments are few)
         let mut results = Vec::with_capacity(16);
 
         let len = buffer.len();
@@ -140,7 +139,6 @@ impl ImageHelper {
             }
         }
 
-        // 🔴 CHANGED: validate ONLY once, after extraction
         for seg in &mut results {
             let slice = &buffer[seg.start..seg.end];
             seg.has_sof = Self::jpeg_has_sof(slice);
@@ -237,7 +235,7 @@ impl ImageHelper {
         true
     }
 
-    fn jpeg_has_sof(slice: &[u8]) -> bool {
+    pub fn jpeg_has_sof(slice: &[u8]) -> bool {
         slice.windows(2).any(|w| {
             matches!(
                 w,
