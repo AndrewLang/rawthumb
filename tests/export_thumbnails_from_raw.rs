@@ -2,16 +2,34 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 use std::time::Instant;
 
 const SUPPORTED_EXTS: &[&str] = &[
     "cr2", "cr3", "nef", "raf", "arw", "orf", "rw2", "dng", "raw",
 ];
 
+fn init_logger() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        // Default to chatty logs for this test suite but still respect RUST_LOG when set.
+        let env = env_logger::Env::default()
+            .default_filter_or("rawthumb=debug,export_thumbnails_from_raw=debug");
+        env_logger::Builder::from_env(env)
+            .target(env_logger::Target::Stdout)
+            .format_timestamp_secs()
+            .format_target(true)
+            .is_test(true)
+            .filter_level(log::LevelFilter::Trace)
+            .try_init()
+            .ok();
+    });
+}
+
 #[test]
 #[ignore]
 fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Error>> {
-    // Allow overriding the scan root via env var for portability; default to the requested path.
+    init_logger();
     let start = Instant::now();
 
     let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
@@ -27,7 +45,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     }
 
     let files = scan_supported_files(&scan_root)?;
-    println!(
+    log::debug!(
         " 🟢 Found {} supported RAW files under path {:?}",
         files.len(),
         scan_root
@@ -41,7 +59,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
-    println!(" 🟢 Exporting thumbnails into {:?}", output_root);
+    log::debug!(" 🟢 Exporting thumbnails into {:?}", output_root);
 
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
@@ -53,12 +71,13 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
                 successes += 1;
             }
             Err(e) => {
+                log::error!("Failed to export thumbnail for {}: {:?}", path.display(), e);
                 failures.push((path.clone(), e.to_string()));
             }
         }
     }
 
-    println!(
+    log::debug!(
         " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
@@ -66,7 +85,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         start.elapsed(),
         start.elapsed() / (successes as u32 + failures.len() as u32)
     );
-    println!("=========================");
+    log::debug!("=========================");
 
     if !failures.is_empty() {
         let messages = failures
@@ -86,6 +105,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
 #[test]
 #[ignore]
 fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
@@ -109,12 +129,13 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
                 successes += 1;
             }
             Err(e) => {
+                log::error!("Failed to export thumbnail for {}: {:?}", path.display(), e);
                 failures.push((path.clone(), e.to_string()));
             }
         }
     }
 
-    println!(
+    log::debug!(
         " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
@@ -122,7 +143,7 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
         start.elapsed(),
         start.elapsed() / (successes as u32 + failures.len() as u32)
     );
-    println!("=========================");
+    log::debug!("=========================");
 
     Ok(())
 }
@@ -130,6 +151,9 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 #[ignore]
 fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
+
+    log::info!("Starting export_thumbnails_from_dng_test");
     let start = Instant::now();
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
@@ -145,6 +169,8 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
         root.join("DJ").join("DJI-mavic-2-pro-raw-00005.dng"),
         root.join("DJ").join("DJI-mavic-2-pro-raw-00008.dng"),
         root.join("DJ").join("DJI-mavic-2-pro-raw-00007.dng"),
+        root.join("OM System").join("P8206009.ORF"),
+        root.join("OM System").join("PA086285.ORF"),
     ];
 
     let output_root = PathBuf::from(r"D:\Photos\temp\thumbnails\dng");
@@ -160,12 +186,13 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
                 successes += 1;
             }
             Err(e) => {
+                log::error!("Failed to export thumbnail for {}: {:?}", path.display(), e);
                 failures.push((path.clone(), e.to_string()));
             }
         }
     }
 
-    println!(
+    log::debug!(
         " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
@@ -173,12 +200,11 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
         start.elapsed(),
         start.elapsed() / (successes as u32 + failures.len() as u32)
     );
-    println!("=========================");
+    log::debug!("=========================");
 
     Ok(())
 }
 
-/// Recursively scan the root directory for RAW files with supported extensions.
 fn scan_supported_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut stack = vec![root.to_path_buf()];
     let mut results = Vec::new();
@@ -209,14 +235,14 @@ fn is_supported(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Process a single RAW file: export its thumbnail into the output root, mirroring the relative path.
 fn process_file(
     path: &Path,
     root: &Path,
     output_root: &Path,
     exporter: &rawthumb::Exporter,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("➡️  Processing file {}", path.to_string_lossy().to_string());
+    // log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
+    log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
     let raw_bytes = fs::read(path)?;
 
     // Build an output path that mirrors the input structure and uses .jpg extension.

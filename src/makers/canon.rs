@@ -43,12 +43,10 @@ impl CanonDecoder {
     }
 
     fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> std::result::Result<&'a [u8], DecodingError> {
-        // Prefer the Exif-provided preview when it looks like a displayable JPEG (APP0/APP1).
         if let Some(exif_jpeg) = jpeg_from_exif(buffer, &self.exif) {
             return Ok(exif_jpeg);
         }
 
-        // Fallback: scan for the largest displayable JPEG slice (skip raw lossless JPEG data).
         if let Some(scanned) = find_display_jpeg_slice(buffer) {
             return Ok(scanned);
         }
