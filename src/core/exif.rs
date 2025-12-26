@@ -142,6 +142,7 @@ static BASIC_INFO_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
         }
         0x828e? / cfa_pattern
         0xc612? / dng_version
+
         if dng_version ? {
             0xc614 {
                 str + 0 / make_model

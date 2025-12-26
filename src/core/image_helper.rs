@@ -24,27 +24,30 @@ impl ImageHelper {
     pub fn extract_canon_cr3_exif_segment(buffer: &[u8]) -> Option<&[u8]> {
         const EXIF_HEADER: &[u8] = b"Exif\0\0";
 
-        if let Some(pos) = buffer
-            .windows(EXIF_HEADER.len())
-            .position(|window| window == EXIF_HEADER)
-        {
-            let after_exif = pos + EXIF_HEADER.len();
-            if let Some(header) = buffer.get(after_exif..after_exif + 4) {
-                if Self::is_tiff_header(header) {
-                    return buffer.get(after_exif..);
-                }
+        if let Some(pos) = Self::find_bytes(buffer, EXIF_HEADER) {
+            let after = pos + EXIF_HEADER.len();
+
+            if after + 4 <= buffer.len() && Self::is_tiff_header(&buffer[after..after + 4]) {
+                return Some(&buffer[after..]);
             }
-            if let Some(rel) = buffer[after_exif..]
-                .windows(4)
-                .position(|w| Self::is_tiff_header(w))
-            {
-                let start = after_exif + rel;
-                return buffer.get(start..);
+
+            let scan_end = (after + 256 * 1024).min(buffer.len());
+            let mut i = after;
+            while i + 4 <= scan_end {
+                if Self::is_tiff_header(&buffer[i..i + 4]) {
+                    return Some(&buffer[i..]);
+                }
+                i += 1;
             }
         }
 
-        if let Some(pos) = buffer.windows(4).position(|w| Self::is_tiff_header(w)) {
-            return buffer.get(pos..);
+        let scan_end = (4 * 1024 * 1024).min(buffer.len());
+        let mut i = 0;
+        while i + 4 <= scan_end {
+            if Self::is_tiff_header(&buffer[i..i + 4]) {
+                return Some(&buffer[i..]);
+            }
+            i += 1;
         }
 
         None
@@ -283,7 +286,8 @@ impl ImageHelper {
                     .position(|w| w == [0xff, 0xd8, 0xff])
                 {
                     let soi = start + rel_soi;
-                    if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9])
+                    if let Some(rel_eoi) =
+                        buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9])
                     {
                         let end = soi + 3 + rel_eoi + 2;
                         let slice = &buffer[soi..end];
@@ -377,5 +381,23 @@ impl ImageHelper {
                 [0xFF, 0xC2] // Progressive
             )
         })
+    }
+
+    #[inline]
+    fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        let n = needle.len();
+        let h = haystack.len();
+
+        let first = needle[0];
+        let max = h.saturating_sub(n);
+
+        let mut i = 0;
+        while i <= max {
+            if haystack[i] == first && &haystack[i..i + n] == needle {
+                return Some(i);
+            }
+            i += 1;
+        }
+        None
     }
 }

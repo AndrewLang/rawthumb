@@ -12,7 +12,7 @@ use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
-static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
+pub static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     describe_exif_rule!(tiff {
         0x0112 / orientation
         next {

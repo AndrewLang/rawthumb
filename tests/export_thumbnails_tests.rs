@@ -6,7 +6,10 @@ use std::sync::Once;
 use std::time::Instant;
 
 use rawthumb::ThumbnailExporter;
+use rawthumb::core::exif::{ExifNames, ExifReader, QuickExifReader};
 use rawthumb::core::image_format::ImageFormt;
+use rawthumb::core::image_helper::ImageHelper;
+use rawthumb::core::raw_metadata_parser::RawMetadataParser;
 
 fn init_logger() {
     static INIT: Once = Once::new();
@@ -101,6 +104,47 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         }
     }
 
+    Ok(())
+}
+
+#[test]
+fn read_orientation_from_raw_fixture() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
+
+    let fixtures_dir = PathBuf::from(r"D:\Photos\Brands");
+    let sample = fixtures_dir
+        .join("Canon")
+        .join("EOS R")
+        .join("Canon-eos-r-raw-00019.cr3");
+
+    if !sample.exists() {
+        eprintln!("sample RAW {:?} missing; skipping", sample);
+        return Ok(());
+    }
+
+    let buf = fs::read(&sample)?;
+    let reader = QuickExifReader::new();
+    let orientation_tag = RawMetadataParser::parse_with_cr3_fallback(&reader, &buf)
+        .ok()
+        .and_then(|(parsed, _, exif_buf)| {
+            parsed
+                .u16(ExifNames::ORIENTATION)
+                .ok()
+                .or_else(|| reader.get_orientation(exif_buf))
+        })
+        .or_else(|| {
+            ImageHelper::extract_canon_cr3_exif_segment(&buf)
+                .and_then(|seg| reader.get_orientation(seg))
+        })
+        .or_else(|| reader.get_orientation(&buf));
+
+    log::info!("Orientation for {:?}: {:?}", sample, orientation_tag);
+    assert_eq!(
+        orientation_tag,
+        Some(8),
+        "expected orientation=8 (Rotate270 CW) in {:?}",
+        sample
+    );
     Ok(())
 }
 

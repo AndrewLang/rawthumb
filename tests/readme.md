@@ -9,6 +9,8 @@ cargo test -- --nocapture --ignored --test export_thumbnails_tests export_thumbn
 
 cargo test -- --nocapture --ignored --test export_thumbnails_tests export_thumbnails_from_dng_test
 
+cargo test -- --nocapture --test export_thumbnails_tests read_orientation_from_raw_fixture
+
 cargo test -- --nocapture --test export_api_characterization export_thumbnail_public_api_smoke
 
 

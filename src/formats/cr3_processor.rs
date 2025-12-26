@@ -18,10 +18,15 @@ impl Cr3Processor {
     }
 
     fn read_orientation(&self, raw: &[u8], jpeg: &[u8]) -> Orientation {
+        // Prefer the embedded JPEG EXIF first (smallest parse), then fall back to Canon EXIF segment, then full raw.
         let orientation = self
             .exif
-            .get_orientation(raw)
-            .or_else(|| self.exif.get_orientation(jpeg));
+            .get_orientation(jpeg)
+            .or_else(|| {
+                ImageHelper::extract_canon_cr3_exif_segment(raw)
+                    .and_then(|seg| self.exif.get_orientation(seg))
+            })
+            .or_else(|| self.exif.get_orientation(raw));
 
         match orientation {
             Some(3) => Orientation::Rotate180,
