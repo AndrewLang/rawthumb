@@ -1,6 +1,32 @@
+use quickexif::{parsed_info::Error as QuickExifFieldError, parser};
 use thiserror::Error;
 
-use crate::rawthumb::core::exif::{ExifError, ExifFieldError};
+#[derive(Debug, thiserror::Error)]
+pub enum ExifError {
+    #[error(transparent)]
+    Parse(#[from] parser::Error),
+}
+
+impl ExifError {
+    pub fn tag_not_found(&self) -> Option<u16> {
+        match self {
+            ExifError::Parse(parser::Error::TagNotFound(tag)) => Some(*tag),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ExifFieldError {
+    #[error(transparent)]
+    Field(#[from] QuickExifFieldError),
+}
+
+impl ExifFieldError {
+    pub fn field_not_found(name: &str) -> Self {
+        ExifFieldError::Field(QuickExifFieldError::FieldNotFound(name.to_owned()))
+    }
+}
 
 pub type Result<T> = std::result::Result<T, ImageProcessingError>;
 

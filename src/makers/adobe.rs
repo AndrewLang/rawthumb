@@ -5,10 +5,9 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use crate::describe_exif_rule;
+use crate::rawthumb::core::errors::ExifFieldError;
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::exif::{
-    ExifError, ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
-};
+use crate::rawthumb::core::exif::{ExifNames, ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
@@ -466,19 +465,6 @@ impl AdobeDecoder {
         ))
     }
 
-    fn get_orientation(&self, parsed: &ParsedExif) -> Orientation {
-        match parsed.u16(ExifNames::ORIENTATION).ok() {
-            None => Orientation::Horizontal,
-            Some(o) => match o {
-                1 => Orientation::Horizontal,
-                3 => Orientation::Rotate180,
-                6 => Orientation::Rotate90,
-                8 => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            },
-        }
-    }
-
     fn try_slice<'a>(
         &self,
         parsed: &ParsedExif,
@@ -533,7 +519,7 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = match exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed) {
             Ok(info) => info,
-            Err(ExifError::Parse(quickexif::parser::Error::TagNotFound(_))) => {
+            Err(e) if e.tag_not_found().is_some() => {
                 let (orientation_tag, jpeg) = self
                     .decoder
                     .find_jpeg_ifd_preview(buffer)
@@ -551,6 +537,7 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
                             ExifNames::THUMBNAIL,
                         ))
                     })?;
+
                 let orientation = ImageHelper::orientation_from_tag(orientation_tag)
                     .unwrap_or(Orientation::Horizontal);
                 return Ok(ThumbnailResult {
@@ -562,7 +549,7 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
         };
         let (orientation_tag, thumbnail) = self.decoder.get_thumbnail(&raw_info, buffer)?;
         let orientation = ImageHelper::orientation_from_tag(orientation_tag)
-            .unwrap_or_else(|| self.decoder.get_orientation(&raw_info));
+            .unwrap_or_else(|| raw_info.orientation());
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),
             orientation,

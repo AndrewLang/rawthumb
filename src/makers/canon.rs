@@ -4,10 +4,9 @@ use once_cell::sync::Lazy;
 use std::borrow::Cow;
 
 use crate::describe_exif_rule;
+use crate::rawthumb::core::errors::ExifFieldError;
 use crate::rawthumb::core::errors::{DecodingError, Result};
-use crate::rawthumb::core::exif::{
-    ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
-};
+use crate::rawthumb::core::exif::{ExifNames, ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
@@ -26,19 +25,6 @@ pub static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct CanonDecoder;
 
 impl CanonDecoder {
-    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
-        match exif.u16(ExifNames::ORIENTATION).ok() {
-            None => Orientation::Horizontal,
-            Some(o) => match o {
-                1 => Orientation::Horizontal,
-                3 => Orientation::Rotate180,
-                6 => Orientation::Rotate90,
-                8 => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            },
-        }
-    }
-
     fn get_thumbnail<'a>(
         &self,
         buffer: &'a [u8],
@@ -77,7 +63,7 @@ impl ThumbnailExtractor for CanonThumbnailExtractor {
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
-        let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
+        let orientation: Orientation = raw_info.orientation();
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),
             orientation,

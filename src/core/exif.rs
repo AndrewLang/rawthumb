@@ -1,48 +1,19 @@
 #![allow(dead_code)]
 
 use once_cell::sync::Lazy;
-use quickexif::parsed_info::Error as QuickExifFieldError;
 
-use crate::rawthumb::core::types::RawMetadata;
+use crate::rawthumb::core::errors::{ExifError, ExifFieldError};
+pub use crate::rawthumb::core::exif_names::ExifNames;
+use crate::rawthumb::core::types::{Orientation, RawMetadata};
 
 pub type ExifResult<T> = Result<T, ExifError>;
 pub type ExifFieldResult<T> = Result<T, ExifFieldError>;
 
-pub struct ExifNames;
-
-impl ExifNames {
-    pub const ORIENTATION: &'static str = "orientation";
-    pub const THUMBNAIL: &'static str = "thumbnail";
-    pub const THUMBNAIL_LEN: &'static str = "thumbnail_len";
-    pub const PREVIEW_OFFSET: &'static str = "preview_offset";
-    pub const PREVIEW_LEN: &'static str = "preview_len";
-    pub const MAKER_NOTES: &'static str = "maker_notes";
-    pub const PREVIEW_IMAGE_START: &'static str = "preview_image_start";
-    pub const PREVIEW_IMAGE_LEN: &'static str = "preview_image_len";
-    pub const MAKE: &'static str = "make";
-    pub const MODEL: &'static str = "model";
-    pub const DNG_VERSION: &'static str = "dng_version";
-    pub const CFA_PATTERN: &'static str = "cfa_pattern";
-    pub const TAG_VALUE: &'static str = "tag_value";
-    pub const TAG_LEN: &'static str = "tag_len";
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ExifError {
-    #[error(transparent)]
-    Parse(#[from] quickexif::parser::Error),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ExifFieldError {
-    #[error(transparent)]
-    Field(#[from] QuickExifFieldError),
-}
-
-impl ExifFieldError {
-    pub fn field_not_found(name: &str) -> Self {
-        ExifFieldError::Field(QuickExifFieldError::FieldNotFound(name.to_owned()))
-    }
+#[macro_export]
+macro_rules! describe_exif_rule {
+    ($($rule:tt)*) => {
+        $crate::rawthumb::core::exif::ExifParsingRule::new(quickexif::describe_rule!($($rule)*))
+    };
 }
 
 #[derive(Clone, Debug)]
@@ -60,13 +31,6 @@ impl ExifParsingRule {
     }
 }
 
-#[macro_export]
-macro_rules! describe_exif_rule {
-    ($($rule:tt)*) => {
-        $crate::rawthumb::core::exif::ExifParsingRule::new(quickexif::describe_rule!($($rule)*))
-    };
-}
-
 pub struct ParsedExif {
     inner: quickexif::ParsedInfo,
 }
@@ -82,6 +46,7 @@ impl ParsedExif {
                 .count()
         )
     }
+
     pub fn u16(&self, name: &str) -> ExifFieldResult<u16> {
         self.inner.u16(name).map_err(ExifFieldError::from)
     }
@@ -100,6 +65,15 @@ impl ParsedExif {
 
     pub fn u8a4(&self, name: &str) -> ExifFieldResult<[u8; 4]> {
         self.inner.u8a4(name).map_err(ExifFieldError::from)
+    }
+
+    pub fn orientation(&self) -> Orientation {
+        match self.u16(ExifNames::ORIENTATION).ok() {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        }
     }
 
     pub fn into_inner(self) -> quickexif::ParsedInfo {
@@ -190,6 +164,25 @@ impl QuickExifReader {
         Self
     }
 
+    #[inline]
+    fn parse_rule(&self, buffer: &[u8], rule: &ExifParsingRule) -> ExifResult<ParsedExif> {
+        quickexif::parse(buffer, rule.inner())
+            .map(ParsedExif::from)
+            .map_err(ExifError::from)
+    }
+
+    #[inline]
+    fn parse_rule_with_prev(
+        &self,
+        buffer: &[u8],
+        rule: &ExifParsingRule,
+        prev_info: ParsedExif,
+    ) -> ExifResult<ParsedExif> {
+        quickexif::parse_with_prev_info(buffer, rule.inner(), prev_info.into_inner())
+            .map(ParsedExif::from)
+            .map_err(ExifError::from)
+    }
+
     fn parse_tag<'a>(
         &self,
         buffer: &'a [u8],
@@ -206,16 +199,13 @@ impl QuickExifReader {
                 is_value_u16,
             },
         ]));
-        quickexif::parse(buffer, rule.inner())
-            .ok()
-            .map(ParsedExif::from)
+        self.parse_rule(buffer, &rule).ok()
     }
 }
 
 impl ExifReader for QuickExifReader {
     fn parse_raw_metadata(&self, buffer: &[u8]) -> ExifResult<(ParsedExif, RawMetadata)> {
-        let parsed = quickexif::parse(buffer, BASIC_INFO_RULE.inner())?;
-        let parsed = ParsedExif::from(parsed);
+        let parsed = self.parse_rule(buffer, &BASIC_INFO_RULE)?;
         let basic = RawMetadata {
             make: parsed.str(ExifNames::MAKE).unwrap_or_default().to_string(),
             model: parsed.str(ExifNames::MODEL).unwrap_or_default().to_string(),
@@ -226,9 +216,7 @@ impl ExifReader for QuickExifReader {
     }
 
     fn parse_with_rule(&self, buffer: &[u8], rule: &ExifParsingRule) -> ExifResult<ParsedExif> {
-        quickexif::parse(buffer, rule.inner())
-            .map(ParsedExif::from)
-            .map_err(ExifError::from)
+        self.parse_rule(buffer, rule)
     }
 
     fn parse_with_prev_info(
@@ -237,9 +225,7 @@ impl ExifReader for QuickExifReader {
         rule: &ExifParsingRule,
         prev_info: ParsedExif,
     ) -> ExifResult<ParsedExif> {
-        quickexif::parse_with_prev_info(buffer, rule.inner(), prev_info.into_inner())
-            .map(ParsedExif::from)
-            .map_err(ExifError::from)
+        self.parse_rule_with_prev(buffer, rule, prev_info)
     }
 
     fn get_orientation(&self, buffer: &[u8]) -> Option<u16> {

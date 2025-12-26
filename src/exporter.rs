@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::export_config::ExportConfig;
 use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
-use crate::rawthumb::core::exif::{ExifError, ExifReader, ParsedExif, QuickExifReader};
+use crate::rawthumb::core::exif::{ExifReader, ParsedExif, QuickExifReader};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
@@ -120,9 +120,7 @@ impl ThumbnailExporter {
 
         match extractor.extract(buffer, &metadata, self.exif_reader.as_ref(), basic_parsed) {
             Ok(res) => Ok(res),
-            Err(ImageProcessingError::ExifParse(ExifError::Parse(
-                quickexif::parser::Error::TagNotFound(_),
-            ))) => {
+            Err(ImageProcessingError::ExifParse(e)) if e.tag_not_found().is_some() => {
                 if let Some(jpeg) = ImageHelper::extract_valid_jpeg_with_cap(
                     buffer,
                     64 * 1024 * 1024,

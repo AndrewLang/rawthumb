@@ -5,10 +5,9 @@ use std::borrow::Cow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::describe_exif_rule;
+use crate::rawthumb::core::errors::ExifFieldError;
 use crate::rawthumb::core::errors::{DecodingError, ImageProcessingError, Result};
-use crate::rawthumb::core::exif::{
-    ExifError, ExifFieldError, ExifNames, ExifParsingRule, ExifReader, ParsedExif,
-};
+use crate::rawthumb::core::exif::{ExifNames, ExifParsingRule, ExifReader, ParsedExif};
 use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
@@ -51,19 +50,6 @@ impl OlympusDecoder {
             .ok_or_else(|| ExifFieldError::field_not_found("preview_image_bounds"))?;
         Ok(&buffer[offset..end])
     }
-
-    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
-        match exif.u16(ExifNames::ORIENTATION).ok() {
-            None => Orientation::Horizontal,
-            Some(o) => match o {
-                1 => Orientation::Horizontal,
-                3 => Orientation::Rotate180,
-                6 => Orientation::Rotate90,
-                8 => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            },
-        }
-    }
 }
 
 #[allow(dead_code)]
@@ -96,7 +82,8 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
 
         let raw_info = match parse_result {
             Ok(Ok(info)) => info,
-            Ok(Err(ExifError::Parse(quickexif::parser::Error::TagNotFound(tag)))) => {
+            Ok(Err(e)) if matches!(e.tag_not_found(), Some(_)) => {
+                let tag = e.tag_not_found().unwrap_or(0);
                 log::trace!(
                     "Olympus maker note tag 0x{tag:04x} missing; falling back to JPEG scan"
                 );
@@ -125,7 +112,7 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                     && ImageHelper::is_valid_jpeg(thumbnail)
                     && ImageHelper::jpeg_has_sof(thumbnail)
                 {
-                    let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
+                    let orientation: Orientation = raw_info.orientation();
                     Ok(ThumbnailResult {
                         jpeg: Cow::Borrowed(thumbnail),
                         orientation,

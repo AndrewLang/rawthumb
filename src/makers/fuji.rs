@@ -75,7 +75,7 @@ impl ThumbnailExtractor for FujiThumbnailExtractor {
             .get_orientation(&raw_info)
             .unwrap_or(Orientation::Horizontal);
 
-        log::debug!("Fuji thumbnail orientation from EXIF: {:?}", orientation);
+        log::trace!("Fuji thumbnail orientation from EXIF: {:?}", orientation);
 
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),

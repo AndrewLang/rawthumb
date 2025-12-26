@@ -42,19 +42,6 @@ impl NikonDecoder {
         let len = exif.usize(ExifNames::THUMBNAIL_LEN)?;
         Ok(&buffer[offset..offset + len])
     }
-
-    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
-        match exif.u16(ExifNames::ORIENTATION).ok() {
-            None => Orientation::Horizontal,
-            Some(o) => match o {
-                1 => Orientation::Horizontal,
-                3 => Orientation::Rotate180,
-                6 => Orientation::Rotate90,
-                8 => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            },
-        }
-    }
 }
 
 #[derive(Default)]
@@ -84,7 +71,7 @@ impl ThumbnailExtractor for NikonThumbnailExtractor {
 
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
-        let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
+        let orientation: Orientation = raw_info.orientation();
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),
             orientation,
