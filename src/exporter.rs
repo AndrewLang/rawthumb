@@ -164,8 +164,23 @@ impl ThumbnailExporter {
             result.orientation
         );
 
-        let ThumbnailResult { jpeg, orientation, .. } = result;
-        let rotated = self.config.rotator.rotate(jpeg.as_ref(), orientation)?;
+        let ThumbnailResult {
+            jpeg, orientation, ..
+        } = result;
+        let rotated = match self.config.rotator.rotate(jpeg.as_ref(), orientation) {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!(
+                    "Auto-rotate failed for orientation {:?}: {}; returning original thumbnail",
+                    orientation,
+                    e
+                );
+                return Ok(ThumbnailResult {
+                    jpeg,
+                    orientation: Orientation::Horizontal,
+                });
+            }
+        };
 
         Ok(ThumbnailResult {
             jpeg: match rotated {

@@ -93,10 +93,7 @@ impl ThumbnailExtractor for NikonThumbnailExtractor {
 }
 
 impl NikonThumbnailExtractor {
-    fn try_fast_path<'a>(
-        buffer: &'a [u8],
-        exif: &dyn ExifReader,
-    ) -> Option<ThumbnailResult<'a>> {
+    fn try_fast_path<'a>(buffer: &'a [u8], exif: &dyn ExifReader) -> Option<ThumbnailResult<'a>> {
         let parsed = exif.parse_with_rule(buffer, &NIKON_FAST_RULE).ok()?;
 
         let offset = parsed.u32(ExifNames::THUMBNAIL).ok()? as usize;
@@ -107,7 +104,7 @@ impl NikonThumbnailExtractor {
             return None;
         }
         let thumb = buffer.get(offset..end)?;
-        
+
         let orientation = match parsed.u16(ExifNames::ORIENTATION).ok() {
             Some(3) => Orientation::Rotate180,
             Some(6) => Orientation::Rotate90,
@@ -121,10 +118,7 @@ impl NikonThumbnailExtractor {
         })
     }
 
-    fn try_from_parsed<'a>(
-        buffer: &'a [u8],
-        parsed: &ParsedExif,
-    ) -> Option<ThumbnailResult<'a>> {
+    fn try_from_parsed<'a>(buffer: &'a [u8], parsed: &ParsedExif) -> Option<ThumbnailResult<'a>> {
         let offset = parsed.u32(ExifNames::THUMBNAIL).ok()? as usize;
         let len = parsed.u32(ExifNames::THUMBNAIL_LEN).ok()? as usize;
         let end = offset.checked_add(len)?;

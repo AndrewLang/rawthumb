@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use memchr::memchr;
+use turbojpeg::Decompressor;
 
 use crate::rawthumb::core::exif::{ExifNames, ParsedExif};
 use crate::rawthumb::core::types::Orientation;
@@ -381,6 +382,14 @@ impl ImageHelper {
         }
 
         true
+    }
+
+    pub fn is_decodable_jpeg(slice: &[u8]) -> bool {
+        Self::is_valid_jpeg(slice)
+            && Self::jpeg_has_sof(slice)
+            && Decompressor::new()
+                .and_then(|mut d| d.read_header(slice).map(|_| ()))
+                .is_ok()
     }
 
     pub fn jpeg_has_sof(slice: &[u8]) -> bool {

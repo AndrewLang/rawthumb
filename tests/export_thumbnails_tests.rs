@@ -154,7 +154,7 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
     init_logger();
 
     let start = Instant::now();
-    let target_ext = env::var("RAWTHUMB_TARGET_EXT").unwrap_or_else(|_| "rw2".to_string());
+    let target_ext = env::var("RAWTHUMB_TARGET_EXT").unwrap_or_else(|_| "dng".to_string());
     let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));

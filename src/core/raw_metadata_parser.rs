@@ -9,11 +9,9 @@ use crate::rawthumb::core::types::RawMetadata;
 pub struct RawMetadataParser;
 
 impl RawMetadataParser {
-    pub fn parse(
-        exif: &dyn ExifReader,
-        buffer: &[u8],
-    ) -> Result<(ParsedExif, RawMetadata)> {
-        exif.parse_raw_metadata(buffer).map_err(ImageProcessingError::from)
+    pub fn parse(exif: &dyn ExifReader, buffer: &[u8]) -> Result<(ParsedExif, RawMetadata)> {
+        exif.parse_raw_metadata(buffer)
+            .map_err(ImageProcessingError::from)
     }
 
     pub fn parse_with_cr3_fallback<'a>(
