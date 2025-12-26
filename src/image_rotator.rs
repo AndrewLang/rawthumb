@@ -38,7 +38,7 @@ impl DefaultImageRotator {
         let mut transform = Transform::op(op);
         transform.copy_none = true;
 
-        log::debug!(
+        log::trace!(
             "Attempting JPEG rotation for orientation {:?}, {:?}",
             orientation,
             transform
@@ -94,7 +94,7 @@ impl ImageRotator for DefaultImageRotator {
             return Ok(Cow::Borrowed(buffer));
         }
 
-        log::debug!("Attempting rotation for orientation {:?}", orientation);
+        log::trace!("Attempting rotation for orientation {:?}", orientation);
 
         if let Ok(out) = Self::rotate_jpeg_lossless(buffer, orientation) {
             return Ok(out);
