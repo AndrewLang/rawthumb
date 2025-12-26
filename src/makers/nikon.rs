@@ -21,6 +21,14 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     })
 });
 
+static NIKON_FAST_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
+    describe_exif_rule!(tiff {
+        0x0112 / orientation
+        0x0201 / thumbnail
+        0x0202 / thumbnail_len
+    })
+});
+
 #[derive(Default)]
 struct NikonDecoder;
 
@@ -89,21 +97,24 @@ impl NikonThumbnailExtractor {
         buffer: &'a [u8],
         exif: &dyn ExifReader,
     ) -> Option<ThumbnailResult<'a>> {
-        let (offset, len) = (
-            exif.get_tag_u32(buffer, 0x0201)? as usize,
-            exif.get_tag_u32(buffer, 0x0202)? as usize,
-        );
+        let parsed = exif.parse_with_rule(buffer, &NIKON_FAST_RULE).ok()?;
+
+        let offset = parsed.u32(ExifNames::THUMBNAIL).ok()? as usize;
+        let len = parsed.u32(ExifNames::THUMBNAIL_LEN).ok()? as usize;
+
         let end = offset.checked_add(len)?;
         if end == 0 || end > buffer.len() {
             return None;
         }
         let thumb = buffer.get(offset..end)?;
-        let orientation = match exif.get_orientation(buffer) {
+        
+        let orientation = match parsed.u16(ExifNames::ORIENTATION).ok() {
             Some(3) => Orientation::Rotate180,
             Some(6) => Orientation::Rotate90,
             Some(8) => Orientation::Rotate270,
             _ => Orientation::Horizontal,
         };
+
         Some(ThumbnailResult {
             jpeg: Cow::Borrowed(thumb),
             orientation,

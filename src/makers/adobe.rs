@@ -153,29 +153,7 @@ impl AdobeDecoder {
         max_scan_bytes: usize,
         min_size: usize,
     ) -> Option<&'a [u8]> {
-        let scan_len = buffer.len().min(max_scan_bytes);
-        let mut cursor = 0usize;
-
-        while let Some(rel_soi) = buffer[cursor..scan_len]
-            .windows(3)
-            .position(|w| w == [0xff, 0xd8, 0xff])
-        {
-            let soi = cursor + rel_soi;
-            if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
-                let end = soi + 3 + rel_eoi + 2;
-                if let Some(slice) = buffer.get(soi..end) {
-                    if slice.len() >= min_size && ImageHelper::jpeg_has_sof(slice) {
-                        return Some(slice);
-                    }
-                }
-                cursor = end;
-                continue;
-            } else {
-                break;
-            }
-        }
-
-        None
+        ImageHelper::extract_valid_jpeg_with_cap(buffer, max_scan_bytes, min_size, true)
     }
 }
 

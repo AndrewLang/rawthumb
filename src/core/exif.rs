@@ -176,6 +176,12 @@ static BASIC_INFO_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
     })
 });
 
+static ORIENTATION_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
+    describe_exif_rule!(tiff {
+        0x0112 / tag_value
+    })
+});
+
 #[derive(Clone, Debug)]
 pub struct QuickExifReader;
 
@@ -237,7 +243,9 @@ impl ExifReader for QuickExifReader {
     }
 
     fn get_orientation(&self, buffer: &[u8]) -> Option<u16> {
-        self.parse_tag(buffer, 0x0112, true, None)
+        quickexif::parse(buffer, ORIENTATION_RULE.inner())
+            .ok()
+            .map(ParsedExif::from)
             .and_then(|p| p.u16(ExifNames::TAG_VALUE).ok())
     }
 
