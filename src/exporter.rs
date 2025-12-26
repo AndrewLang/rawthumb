@@ -144,7 +144,11 @@ impl ThumbnailExporter {
     }
 
     fn fallback_jpeg<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
-        ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true)
+        // Try a small scan first to avoid expensive full-buffer walks on failures.
+        ImageHelper::extract_valid_jpeg_with_cap(buffer, 16 * 1024 * 1024, 16 * 1024, true)
+            .or_else(|| {
+                ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true)
+            })
             .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
             .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))
     }

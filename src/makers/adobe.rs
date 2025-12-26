@@ -266,19 +266,19 @@ impl AdobeDecoder {
         if offset >= buffer.len() {
             return None;
         }
+        // Avoid scanning the whole file; allow a modest overread beyond the declared length.
+        let overread = 512 * 1024;
         let max_end = buffer
             .len()
-            .min(offset.saturating_add(len).saturating_add(32 * 1024 * 1024));
+            .min(offset.saturating_add(len).saturating_add(overread));
         let window = &buffer[offset..max_end];
 
         if window.len() < 2 || window[0] != 0xff || window[1] != 0xd8 {
             return None;
         }
 
-        ImageHelper::extract_valid_jpeg_with_cap(window, window.len(), 1024, true).filter(|s| {
-            let start_match = std::ptr::eq(s.as_ptr(), window.as_ptr());
-            start_match
-        })
+        ImageHelper::extract_valid_jpeg_with_cap(window, len.saturating_add(overread), 1024, true)
+            .filter(|s| std::ptr::eq(s.as_ptr(), window.as_ptr()))
     }
 
     fn read_u16(buffer: &[u8], offset: usize, le: bool) -> Option<u16> {

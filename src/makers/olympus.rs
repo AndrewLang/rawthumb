@@ -148,7 +148,15 @@ impl OlympusThumbnailExtractor {
 
         // Try a capped fast scan first to avoid scanning huge buffers.
         if let Some(jpeg) =
-            ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 32 * 1024, true)
+            ImageHelper::extract_valid_jpeg_with_cap(buffer, 16 * 1024 * 1024, 32 * 1024, true)
+                .or_else(|| {
+                    ImageHelper::extract_valid_jpeg_with_cap(
+                        buffer,
+                        64 * 1024 * 1024,
+                        32 * 1024,
+                        true,
+                    )
+                })
         {
             if valid(jpeg) {
                 let orientation = match exif.get_orientation(buffer) {
