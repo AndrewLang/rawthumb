@@ -3,6 +3,7 @@
 use memchr::memchr;
 
 use crate::rawthumb::core::exif::{ExifNames, ParsedExif};
+use crate::rawthumb::core::types::Orientation;
 
 pub struct ImageHelper;
 
@@ -17,6 +18,16 @@ pub struct JpegSegment<'a> {
 }
 
 impl ImageHelper {
+    pub fn orientation_from_tag(tag: Option<u16>) -> Option<Orientation> {
+        match tag {
+            Some(1) => Some(Orientation::Horizontal),
+            Some(3) => Some(Orientation::Rotate180),
+            Some(6) => Some(Orientation::Rotate90),
+            Some(8) => Some(Orientation::Rotate270),
+            _ => None,
+        }
+    }
+
     pub fn is_tiff_header(bytes: &[u8]) -> bool {
         matches!(bytes, [0x49, 0x49, 0x2a, 0x00] | [0x4d, 0x4d, 0x00, 0x2a])
     }

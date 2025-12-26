@@ -4,14 +4,14 @@ use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
 use crate::rawthumb::core::types::Orientation;
 use image::codecs::jpeg::{JpegDecoder, JpegEncoder};
 use image::{ColorType, ImageBuffer, ImageDecoder, ImageFormat};
+use std::borrow::Cow;
 use std::io::Cursor;
-use turbojpeg::{transform as tj_transform, Transform, TransformOp};
+use turbojpeg::{Transform, TransformOp, transform as tj_transform};
 
 pub trait ImageRotator: Send + Sync {
-    fn rotate(&self, buffer: &[u8], orientation: Orientation) -> CoreResult<Vec<u8>>;
+    fn rotate<'a>(&self, buffer: &'a [u8], orientation: Orientation) -> CoreResult<Cow<'a, [u8]>>;
 }
 
-/// JPEG-focused rotator with configurable output quality to balance speed/size.
 pub struct DefaultImageRotator {
     quality: u8,
 }
@@ -23,17 +23,30 @@ impl DefaultImageRotator {
         Self { quality }
     }
 
-    fn rotate_jpeg_lossless(jpeg: &[u8], orientation: Orientation) -> Result<Vec<u8>, String> {
+    #[inline]
+    fn rotate_jpeg_lossless(
+        jpeg: &[u8],
+        orientation: Orientation,
+    ) -> Result<Cow<'_, [u8]>, String> {
         let op = match orientation {
             Orientation::Rotate90 => TransformOp::Rot90,
             Orientation::Rotate180 => TransformOp::Rot180,
             Orientation::Rotate270 => TransformOp::Rot270,
-            Orientation::Horizontal => return Ok(jpeg.to_vec()),
+            Orientation::Horizontal => return Ok(Cow::Borrowed(jpeg)),
         };
 
-        let buf = tj_transform(&Transform::op(op), jpeg).map_err(|e| e.to_string())?;
+        let mut transform = Transform::op(op);
+        transform.copy_none = true;
 
-        Ok(buf.as_ref().to_vec())
+        log::debug!(
+            "Attempting JPEG rotation for orientation {:?}, {:?}",
+            orientation,
+            transform
+        );
+
+        let buf = tj_transform(&transform, jpeg).map_err(|e| e.to_string())?;
+
+        Ok(Cow::Owned(buf.as_ref().to_vec()))
     }
 
     fn rotate_and_encode<P>(
@@ -76,10 +89,12 @@ impl DefaultImageRotator {
 }
 
 impl ImageRotator for DefaultImageRotator {
-    fn rotate(&self, buffer: &[u8], orientation: Orientation) -> CoreResult<Vec<u8>> {
+    fn rotate<'a>(&self, buffer: &'a [u8], orientation: Orientation) -> CoreResult<Cow<'a, [u8]>> {
         if orientation == Orientation::Horizontal {
-            return Ok(buffer.to_vec());
+            return Ok(Cow::Borrowed(buffer));
         }
+
+        log::debug!("Attempting rotation for orientation {:?}", orientation);
 
         if let Ok(out) = Self::rotate_jpeg_lossless(buffer, orientation) {
             return Ok(out);
@@ -94,7 +109,11 @@ impl DefaultImageRotator {
         &self,
         buffer: &[u8],
         orientation: Orientation,
-    ) -> CoreResult<Vec<u8>> {
+    ) -> CoreResult<Cow<'static, [u8]>> {
+        log::info!(
+            "Falling back to decode-rotate-encode for orientation {:?}",
+            orientation
+        );
         let cursor = Cursor::new(buffer);
         let decoder = JpegDecoder::new(cursor)
             .map_err(|e| ImageProcessingError::Raw(format!("JPEG decode failed: {e}")))?;
@@ -129,7 +148,11 @@ impl DefaultImageRotator {
             ),
             _ => {
                 let img = image::load_from_memory_with_format(buffer, ImageFormat::Jpeg).map_err(
-                    |e| ImageProcessingError::Raw(format!("Failed to decode JPEG for rotation: {e}")),
+                    |e| {
+                        ImageProcessingError::Raw(format!(
+                            "Failed to decode JPEG for rotation: {e}"
+                        ))
+                    },
                 )?;
 
                 let rotated = match orientation {
@@ -148,5 +171,6 @@ impl DefaultImageRotator {
                 Ok(out)
             }
         }
+        .map(Cow::Owned)
     }
 }

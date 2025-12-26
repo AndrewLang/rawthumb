@@ -164,12 +164,14 @@ impl ThumbnailExporter {
             result.orientation
         );
 
-        let rotated = self
-            .config
-            .rotator
-            .rotate(result.jpeg.as_ref(), result.orientation)?;
+        let ThumbnailResult { jpeg, orientation, .. } = result;
+        let rotated = self.config.rotator.rotate(jpeg.as_ref(), orientation)?;
+
         Ok(ThumbnailResult {
-            jpeg: Cow::Owned(rotated),
+            jpeg: match rotated {
+                Cow::Borrowed(_) => jpeg,
+                Cow::Owned(buf) => Cow::Owned(buf),
+            },
             orientation: Orientation::Horizontal,
         })
     }

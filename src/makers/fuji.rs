@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};
 use crate::rawthumb::core::exif::{ExifNames, ExifParsingRule, ExifReader, ParsedExif};
+use crate::rawthumb::core::image_helper::ImageHelper;
 use crate::rawthumb::core::thumbnail_extractor::ThumbnailExtractor;
 use crate::rawthumb::core::types::{Orientation, RawMetadata, ThumbnailResult};
 
@@ -23,17 +24,8 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct FujiDecoder;
 
 impl FujiDecoder {
-    fn get_orientation(&self, exif: &ParsedExif) -> Orientation {
-        match exif.u16(ExifNames::ORIENTATION).ok() {
-            None => Orientation::Horizontal,
-            Some(o) => match o {
-                1 => Orientation::Horizontal,
-                3 => Orientation::Rotate180,
-                6 => Orientation::Rotate90,
-                8 => Orientation::Rotate270,
-                _ => Orientation::Horizontal,
-            },
-        }
+    fn get_orientation(&self, exif: &ParsedExif) -> Option<Orientation> {
+        ImageHelper::orientation_from_tag(exif.u16(ExifNames::ORIENTATION).ok())
     }
 
     fn get_thumbnail<'a>(
@@ -78,7 +70,13 @@ impl ThumbnailExtractor for FujiThumbnailExtractor {
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
-        let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
+        let orientation = self
+            .decoder
+            .get_orientation(&raw_info)
+            .unwrap_or(Orientation::Horizontal);
+
+        log::debug!("Fuji thumbnail orientation from EXIF: {:?}", orientation);
+
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),
             orientation,
