@@ -150,6 +150,85 @@ fn read_orientation_from_raw_fixture() -> Result<(), Box<dyn std::error::Error>>
 
 #[test]
 #[ignore]
+fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
+
+    let start = Instant::now();
+    let target_ext = env::var("RAWTHUMB_TARGET_EXT").unwrap_or_else(|_| "cr3".to_string());
+    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+
+    if !scan_root.exists() {
+        eprintln!(
+            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
+            scan_root
+        );
+        return Ok(());
+    }
+
+    let mut targets = Vec::new();
+    for entry in walkdir::WalkDir::new(&scan_root)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+    {
+        let path = entry.path();
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case(&target_ext))
+            .unwrap_or(false)
+        {
+            targets.push(path.to_path_buf());
+        }
+    }
+
+    if targets.is_empty() {
+        eprintln!(
+            "no .{} files found under {:?}; set RAWTHUMB_SCAN_ROOT to your library and rerun",
+            target_ext, scan_root
+        );
+        return Ok(());
+    }
+    let count = targets.len();
+    let output_root = env::var("RAWTHUMB_OUTPUT_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
+    fs::create_dir_all(&output_root)?;
+
+    let exporter = ThumbnailExporter::new();
+    for path in targets {
+        log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
+        let rel = path.strip_prefix(&scan_root).unwrap_or(&path);
+        let out_path = output_root.join(rel).with_extension("jpg");
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        exporter.export_thumbnail_to_file(path.to_str().unwrap(), &out_path.to_string_lossy())?;
+        let bytes = fs::read(&out_path)?;
+        assert!(
+            bytes.len() >= 2 && bytes[0] == 0xff && bytes[1] == 0xd8,
+            "missing SOI for {:?}",
+            out_path
+        );
+    }
+
+    log::debug!("============================================================================");
+    log::debug!(
+        " 🟢 Exported {} .{} thumbnails under {:?} in {:?}, average time per thumbnail: {:?}",
+        count,
+        target_ext,
+        output_root,
+        start.elapsed(),
+        start.elapsed() / (count as u32)
+    );
+
+    Ok(())
+}
+
+#[test]
+#[ignore]
 fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     init_logger();
     let start = Instant::now();

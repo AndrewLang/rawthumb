@@ -66,11 +66,68 @@ impl ThumbnailExtractor for NikonThumbnailExtractor {
         exif: &dyn ExifReader,
         parsed: ParsedExif,
     ) -> Result<ThumbnailResult<'a>> {
+        if let Some(fast) = Self::try_fast_path(buffer, exif) {
+            return Ok(fast);
+        }
+
+        if let Some(from_parsed) = Self::try_from_parsed(buffer, &parsed) {
+            return Ok(from_parsed);
+        }
+
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
         let orientation: Orientation = self.decoder.get_orientation(&raw_info).into();
         Ok(ThumbnailResult {
             jpeg: Cow::Borrowed(thumbnail),
+            orientation,
+        })
+    }
+}
+
+impl NikonThumbnailExtractor {
+    fn try_fast_path<'a>(
+        buffer: &'a [u8],
+        exif: &dyn ExifReader,
+    ) -> Option<ThumbnailResult<'a>> {
+        let (offset, len) = (
+            exif.get_tag_u32(buffer, 0x0201)? as usize,
+            exif.get_tag_u32(buffer, 0x0202)? as usize,
+        );
+        let end = offset.checked_add(len)?;
+        if end == 0 || end > buffer.len() {
+            return None;
+        }
+        let thumb = buffer.get(offset..end)?;
+        let orientation = match exif.get_orientation(buffer) {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        };
+        Some(ThumbnailResult {
+            jpeg: Cow::Borrowed(thumb),
+            orientation,
+        })
+    }
+
+    fn try_from_parsed<'a>(
+        buffer: &'a [u8],
+        parsed: &ParsedExif,
+    ) -> Option<ThumbnailResult<'a>> {
+        let offset = parsed.u32(ExifNames::THUMBNAIL).ok()? as usize;
+        let len = parsed.u32(ExifNames::THUMBNAIL_LEN).ok()? as usize;
+        let end = offset.checked_add(len)?;
+        let thumb = buffer.get(offset..end)?;
+
+        let orientation = match parsed.u16(ExifNames::ORIENTATION).ok() {
+            Some(3) => Orientation::Rotate180,
+            Some(6) => Orientation::Rotate90,
+            Some(8) => Orientation::Rotate270,
+            _ => Orientation::Horizontal,
+        };
+
+        Some(ThumbnailResult {
+            jpeg: Cow::Borrowed(thumb),
             orientation,
         })
     }
