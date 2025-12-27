@@ -50,7 +50,8 @@ impl ThumbnailExporter {
 
     pub fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> CoreResult<ThumbnailResult<'a>> {
         let result = self.decode_thumbnail(buffer)?;
-        self.apply_auto_rotate(result)
+        let rotated = self.apply_auto_rotate(result)?;
+        self.apply_resize(rotated)
     }
 
     pub fn export_thumbnail_data(&self, buffer: &[u8]) -> CoreResult<Vec<u8>> {
@@ -63,6 +64,7 @@ impl ThumbnailExporter {
         let file = fs::File::open(input_path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
         let thumb = self.get_thumbnail(&mmap)?;
+
         fs::write(output_path, thumb.jpeg)?;
         Ok(())
     }
@@ -190,6 +192,27 @@ impl ThumbnailExporter {
                 Cow::Owned(buf) => Cow::Owned(buf),
             },
             orientation: Orientation::Horizontal,
+        })
+    }
+
+    fn apply_resize<'a>(&self, result: ThumbnailResult<'a>) -> CoreResult<ThumbnailResult<'a>> {
+        if !self.config.resize {
+            return Ok(result);
+        }
+
+        let max_border = self.config.max_border;
+        if max_border.is_none() {
+            return Ok(result);
+        }
+
+        let ThumbnailResult { jpeg, orientation } = result;
+        let resized = self.config.resizer.resize(jpeg.as_ref(), max_border)?;
+        Ok(ThumbnailResult {
+            jpeg: match resized {
+                Cow::Borrowed(_) => jpeg,
+                Cow::Owned(buf) => Cow::Owned(buf),
+            },
+            orientation,
         })
     }
 }

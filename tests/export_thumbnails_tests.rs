@@ -10,6 +10,7 @@ use rawthumb::core::exif::{ExifNames, ExifReader, QuickExifReader};
 use rawthumb::core::image_format::ImageFormt;
 use rawthumb::core::image_helper::ImageHelper;
 use rawthumb::core::raw_metadata_parser::RawMetadataParser;
+use rawthumb::export_config::ExportConfig;
 
 fn init_logger() {
     static INIT: Once = Once::new();
@@ -61,6 +62,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
+
     log::debug!(
         " 🟢 Exporting thumbnails into {}",
         output_root.to_string_lossy().to_string()
@@ -69,7 +71,11 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
-    let exporter = ThumbnailExporter::new();
+    let config = ExportConfig::default()
+        .with_auto_rotate(true)
+        .with_max_border(Some(3840));
+
+    let exporter = ThumbnailExporter::new_with_config(config);
     for path in files {
         match process_file(&path, &scan_root, &output_root, &exporter) {
             Ok(()) => {
@@ -197,7 +203,11 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
         .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
 
-    let exporter = ThumbnailExporter::new();
+    let config = ExportConfig::default()
+        .with_auto_rotate(true)
+        .with_max_border(Some(3840));
+
+    let exporter = ThumbnailExporter::new_with_config(config);
     for path in targets {
         log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
         let rel = path.strip_prefix(&scan_root).unwrap_or(&path);

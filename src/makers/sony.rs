@@ -2,7 +2,6 @@
 
 use once_cell::sync::Lazy;
 use std::borrow::Cow;
-use std::os::raw;
 
 use crate::describe_exif_rule;
 use crate::rawthumb::core::errors::{DecodingError, Result};

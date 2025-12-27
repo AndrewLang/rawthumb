@@ -8,6 +8,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct ExportConfig {
     pub auto_rotate: bool,
+    pub resize: bool,
     pub max_border: Option<u32>,
     pub rotator: Arc<dyn ImageRotator>,
     pub resizer: Arc<dyn ImageResizer>,
@@ -17,9 +18,10 @@ impl Default for ExportConfig {
     fn default() -> Self {
         Self {
             auto_rotate: true,
+            resize: false,
             max_border: None,
             rotator: Arc::new(DefaultImageRotator::new(DEFAULT_ROTATE_JPEG_QUALITY)),
-            resizer: Arc::new(DefaultImageResizer),
+            resizer: Arc::new(DefaultImageResizer::default()),
         }
     }
 }
@@ -32,6 +34,7 @@ impl ExportConfig {
 
     pub fn with_max_border(mut self, max_border: Option<u32>) -> Self {
         self.max_border = max_border;
+        self.resize = max_border.is_some();
         self
     }
 

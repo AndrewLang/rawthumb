@@ -88,22 +88,6 @@ impl DefaultImageRotator {
     }
 }
 
-impl ImageRotator for DefaultImageRotator {
-    fn rotate<'a>(&self, buffer: &'a [u8], orientation: Orientation) -> CoreResult<Cow<'a, [u8]>> {
-        if orientation == Orientation::Horizontal {
-            return Ok(Cow::Borrowed(buffer));
-        }
-
-        log::trace!("Attempting rotation for orientation {:?}", orientation);
-
-        if let Ok(out) = Self::rotate_jpeg_lossless(buffer, orientation) {
-            return Ok(out);
-        }
-
-        self.rotate_decode_encode(buffer, orientation)
-    }
-}
-
 impl DefaultImageRotator {
     fn rotate_decode_encode(
         &self,
@@ -172,5 +156,21 @@ impl DefaultImageRotator {
             }
         }
         .map(Cow::Owned)
+    }
+}
+
+impl ImageRotator for DefaultImageRotator {
+    fn rotate<'a>(&self, buffer: &'a [u8], orientation: Orientation) -> CoreResult<Cow<'a, [u8]>> {
+        if orientation == Orientation::Horizontal {
+            return Ok(Cow::Borrowed(buffer));
+        }
+
+        log::trace!("Attempting rotation for orientation {:?}", orientation);
+
+        if let Ok(out) = Self::rotate_jpeg_lossless(buffer, orientation) {
+            return Ok(out);
+        }
+
+        self.rotate_decode_encode(buffer, orientation)
     }
 }
