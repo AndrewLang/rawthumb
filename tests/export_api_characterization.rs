@@ -27,12 +27,13 @@ fn export_thumbnail_public_api_smoke() -> Result<(), Box<dyn std::error::Error>>
         let raw_path = entry.path();
         let raw_bytes = fs::read(&raw_path)?;
 
-        // export_thumbnail_data should return JPEG bytes with SOI/EOI markers.
+        // export should return JPEG bytes with SOI/EOI markers.
         let exporter = rawthumb::ThumbnailExporter::new();
-        let data = exporter.export_thumbnail_data(&raw_bytes)?;
+        let result = exporter.get_thumbnail(&raw_bytes)?;
+        let data = result.jpeg.as_ref();
         assert!(
             data.len() >= 2,
-            "export_thumbnail_data returned too few bytes for {:?}",
+            "get_thumbnail returned too few bytes for {:?}",
             raw_path
         );
         assert_eq!(
@@ -65,7 +66,7 @@ fn export_thumbnail_public_api_smoke() -> Result<(), Box<dyn std::error::Error>>
             .with_extension("jpg");
         let output_path_str = output_path.to_string_lossy().to_string();
         let exporter = rawthumb::ThumbnailExporter::new();
-        exporter.export_thumbnail_to_file(raw_path.to_str().unwrap(), &output_path_str)?;
+        exporter.export_to_file(raw_path.to_str().unwrap(), &output_path_str)?;
 
         let written = fs::read(&output_path)?;
         assert!(
