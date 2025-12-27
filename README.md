@@ -65,3 +65,6 @@ Key return type: `ThumbnailResult` (JPEG bytes as `Cow<[u8]>`, orientation, and 
 - Input reading uses mmap for speed; resizing leverages `fast_image_resize` and TurboJPEG scaling; rotation uses TurboJPEG when possible.
 - SIMD is enabled when available (SSE4.1 / AVX2) via `fast_image_resize`.
 - Optional Rayon is used in dev-only parallel smoke tests. No runtime dependency in the core library.૮
+
+## Performance (sample)
+- Parallel photo library run (Rayon, 8 threads): 394 thumbnails, 0 failures; total 3.897s, avg ~9.9ms/thumb. Results will vary with hardware and IO bandwidth.
