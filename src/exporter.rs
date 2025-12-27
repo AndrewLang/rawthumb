@@ -64,7 +64,12 @@ impl ThumbnailExporter {
         let file = fs::File::open(input_path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
         let thumb = self.get_thumbnail(&mmap)?;
-
+        log::debug!(
+            "Exporting thumbnail (rotated={}, resized={}) to {}",
+            thumb.is_rotated,
+            thumb.is_resized,
+            output_path
+        );
         fs::write(output_path, thumb.jpeg)?;
         Ok(())
     }
@@ -87,20 +92,20 @@ impl ThumbnailExporter {
             Ok(Ok((parsed, basic, buf))) => self.select_extractor_and_decode(buf, parsed, basic),
             Ok(Err(e)) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
-                    Ok(ThumbnailResult {
-                        jpeg: Cow::Borrowed(jpeg),
-                        orientation: Orientation::Horizontal,
-                    })
+                    Ok(ThumbnailResult::new(
+                        Cow::Borrowed(jpeg),
+                        Orientation::Horizontal,
+                    ))
                 } else {
                     Err(e)
                 }
             }
             Err(_) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
-                    Ok(ThumbnailResult {
-                        jpeg: Cow::Borrowed(jpeg),
-                        orientation: Orientation::Horizontal,
-                    })
+                    Ok(ThumbnailResult::new(
+                        Cow::Borrowed(jpeg),
+                        Orientation::Horizontal,
+                    ))
                 } else {
                     Err(ImageProcessingError::Raw(
                         "Panic while parsing EXIF; JPEG fallback failed".to_string(),
@@ -131,10 +136,10 @@ impl ThumbnailExporter {
                 )
                 .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
                 {
-                    Ok(ThumbnailResult {
-                        jpeg: Cow::Borrowed(jpeg),
-                        orientation: Orientation::Horizontal,
-                    })
+                    Ok(ThumbnailResult::new(
+                        Cow::Borrowed(jpeg),
+                        Orientation::Horizontal,
+                    ))
                 } else {
                     Err(ImageProcessingError::Raw(
                         "Fallback JPEG scan failed after missing EXIF tag".to_string(),
@@ -169,7 +174,10 @@ impl ThumbnailExporter {
         );
 
         let ThumbnailResult {
-            jpeg, orientation, ..
+            jpeg,
+            orientation,
+            is_rotated,
+            is_resized,
         } = result;
         let rotated = match self.config.rotator.rotate(jpeg.as_ref(), orientation) {
             Ok(r) => r,
@@ -182,6 +190,8 @@ impl ThumbnailExporter {
                 return Ok(ThumbnailResult {
                     jpeg,
                     orientation: Orientation::Horizontal,
+                    is_rotated,
+                    is_resized,
                 });
             }
         };
@@ -192,6 +202,8 @@ impl ThumbnailExporter {
                 Cow::Owned(buf) => Cow::Owned(buf),
             },
             orientation: Orientation::Horizontal,
+            is_rotated: true,
+            is_resized,
         })
     }
 
@@ -205,14 +217,23 @@ impl ThumbnailExporter {
             return Ok(result);
         }
 
-        let ThumbnailResult { jpeg, orientation } = result;
-        let resized = self.config.resizer.resize(jpeg.as_ref(), max_border)?;
-        Ok(ThumbnailResult {
-            jpeg: match resized {
-                Cow::Borrowed(_) => jpeg,
-                Cow::Owned(buf) => Cow::Owned(buf),
-            },
+        let ThumbnailResult {
+            jpeg,
             orientation,
+            is_rotated,
+            is_resized,
+        } = result;
+        let resized = self.config.resizer.resize(jpeg.as_ref(), max_border)?;
+        let (jpeg, was_resized) = match resized {
+            Cow::Borrowed(_) => (jpeg, false),
+            Cow::Owned(buf) => (Cow::Owned(buf), true),
+        };
+
+        Ok(ThumbnailResult {
+            jpeg,
+            orientation,
+            is_rotated,
+            is_resized: is_resized || was_resized,
         })
     }
 }

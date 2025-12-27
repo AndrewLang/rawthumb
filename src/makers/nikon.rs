@@ -78,10 +78,7 @@ impl ThumbnailExtractor for NikonThumbnailExtractor {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
         let orientation: Orientation = raw_info.orientation();
-        Ok(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumbnail),
-            orientation,
-        })
+        Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
     }
 }
 
@@ -100,10 +97,7 @@ impl NikonThumbnailExtractor {
                             Some(8) => Orientation::Rotate270,
                             _ => Orientation::Horizontal,
                         };
-                        return Some(ThumbnailResult {
-                            jpeg: Cow::Borrowed(thumb),
-                            orientation,
-                        });
+                        return Some(ThumbnailResult::new(Cow::Borrowed(thumb), orientation));
                     }
                 }
             }
@@ -122,10 +116,7 @@ impl NikonThumbnailExtractor {
 
         let orientation = parsed.orientation();
 
-        Some(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumb),
-            orientation,
-        })
+        Some(ThumbnailResult::new(Cow::Borrowed(thumb), orientation))
     }
 
     fn try_from_parsed<'a>(buffer: &'a [u8], parsed: &ParsedExif) -> Option<ThumbnailResult<'a>> {
@@ -139,9 +130,6 @@ impl NikonThumbnailExtractor {
 
         let orientation = parsed.orientation();
 
-        Some(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumb),
-            orientation,
-        })
+        Some(ThumbnailResult::new(Cow::Borrowed(thumb), orientation))
     }
 }

@@ -21,4 +21,17 @@ pub struct RawMetadata {
 pub struct ThumbnailResult<'a> {
     pub jpeg: Cow<'a, [u8]>,
     pub orientation: Orientation,
+    pub is_rotated: bool,
+    pub is_resized: bool,
+}
+
+impl<'a> ThumbnailResult<'a> {
+    pub fn new(jpeg: Cow<'a, [u8]>, orientation: Orientation) -> Self {
+        Self {
+            jpeg,
+            orientation,
+            is_rotated: false,
+            is_resized: false,
+        }
+    }
 }

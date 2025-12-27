@@ -540,19 +540,13 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
 
                 let orientation = ImageHelper::orientation_from_tag(orientation_tag)
                     .unwrap_or(Orientation::Horizontal);
-                return Ok(ThumbnailResult {
-                    jpeg: Cow::Borrowed(jpeg),
-                    orientation,
-                });
+                return Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation));
             }
             Err(e) => return Err(e.into()),
         };
         let (orientation_tag, thumbnail) = self.decoder.get_thumbnail(&raw_info, buffer)?;
         let orientation = ImageHelper::orientation_from_tag(orientation_tag)
             .unwrap_or_else(|| raw_info.orientation());
-        Ok(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumbnail),
-            orientation,
-        })
+        Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
     }
 }

@@ -79,9 +79,6 @@ impl FormatPreprocessor for Cr3Processor {
             .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))?;
         let orientation = self.read_orientation(buffer, jpeg);
 
-        Some(ThumbnailResult {
-            jpeg: Cow::Borrowed(jpeg),
-            orientation,
-        })
+        Some(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation))
     }
 }

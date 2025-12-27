@@ -64,9 +64,6 @@ impl ThumbnailExtractor for CanonThumbnailExtractor {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
         let orientation: Orientation = raw_info.orientation();
-        Ok(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumbnail),
-            orientation,
-        })
+        Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
     }
 }

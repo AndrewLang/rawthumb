@@ -369,7 +369,6 @@ fn process_file(
     output_root: &Path,
     exporter: &ThumbnailExporter,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
     log::debug!("➡️  Processing file {}", path.to_string_lossy().to_string());
 
     // Build an output path that mirrors the input structure and uses .jpg extension.

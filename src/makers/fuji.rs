@@ -77,9 +77,6 @@ impl ThumbnailExtractor for FujiThumbnailExtractor {
 
         log::trace!("Fuji thumbnail orientation from EXIF: {:?}", orientation);
 
-        Ok(ThumbnailResult {
-            jpeg: Cow::Borrowed(thumbnail),
-            orientation,
-        })
+        Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
     }
 }

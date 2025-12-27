@@ -113,10 +113,7 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                     && ImageHelper::jpeg_has_sof(thumbnail)
                 {
                     let orientation: Orientation = raw_info.orientation();
-                    Ok(ThumbnailResult {
-                        jpeg: Cow::Borrowed(thumbnail),
-                        orientation,
-                    })
+                    Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
                 } else {
                     log::warn!(
                         "Olympus maker-note thumbnail failed validation; falling back to JPEG scan"
@@ -165,10 +162,7 @@ impl OlympusThumbnailExtractor {
                     Some(8) => Orientation::Rotate270,
                     _ => Orientation::Horizontal,
                 };
-                return Ok(ThumbnailResult {
-                    jpeg: Cow::Borrowed(jpeg),
-                    orientation,
-                });
+                return Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation));
             }
         }
         if let Some(jpeg) = ImageHelper::extract_best_jpeg_capped(buffer, 128 * 1024 * 1024)
@@ -186,10 +180,7 @@ impl OlympusThumbnailExtractor {
                 Some(8) => Orientation::Rotate270,
                 _ => Orientation::Horizontal,
             };
-            return Ok(ThumbnailResult {
-                jpeg: Cow::Borrowed(jpeg),
-                orientation,
-            });
+            return Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation));
         }
         Err(ImageProcessingError::Raw(
             "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
