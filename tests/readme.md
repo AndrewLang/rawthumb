@@ -17,6 +17,8 @@ cargo test -- --nocapture --test export_api_characterization export_thumbnail_pu
 
 
 TODO:
-1. Provide supported image formats
-2. Config for auto rotate
-3. Improve performance for cr3 format (done)
+1. Provide supported image formats (done)
+2. Config for auto rotate (done)
+3. Config for auto resize (done)
+4. Improve performance for cr3 format (done)
+5. Update API with more friendly name (done)

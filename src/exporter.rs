@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::io::Write;
 use std::sync::Arc;
 
 use crate::export_config::ExportConfig;
@@ -54,12 +55,20 @@ impl ThumbnailExporter {
         self.apply_resize(rotated)
     }
 
-    pub fn export_thumbnail_data(&self, buffer: &[u8]) -> CoreResult<Vec<u8>> {
-        let thumb = self.get_thumbnail(buffer)?;
-        Ok(thumb.jpeg.to_vec())
+    pub fn export(&self, input_path: &str) -> CoreResult<ThumbnailResult<'static>> {
+        let file = fs::File::open(input_path)?;
+        let mmap = unsafe { MmapOptions::new().map(&file)? };
+        let thumb = self.get_thumbnail(&mmap)?;
+
+        Ok(ThumbnailResult {
+            jpeg: Cow::Owned(thumb.jpeg.into_owned()),
+            orientation: thumb.orientation,
+            is_rotated: thumb.is_rotated,
+            is_resized: thumb.is_resized,
+        })
     }
 
-    pub fn export_thumbnail_to_file(&self, input_path: &str, output_path: &str) -> CoreResult<()> {
+    pub fn export_to_file(&self, input_path: &str, output_path: &str) -> CoreResult<()> {
         // Prefer mmap to avoid an extra heap copy for large RAW files.
         let file = fs::File::open(input_path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
@@ -72,7 +81,8 @@ impl ThumbnailExporter {
             output_path
         );
 
-        fs::write(output_path, thumb.jpeg)?;
+        let mut out = fs::File::create(output_path)?;
+        out.write_all(thumb.jpeg.as_ref())?;
         Ok(())
     }
 

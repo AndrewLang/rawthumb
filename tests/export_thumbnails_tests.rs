@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
+use memmap2::MmapOptions;
 use rawthumb::ThumbnailExporter;
 use rawthumb::core::exif::{ExifNames, ExifReader, QuickExifReader};
 use rawthumb::core::image_format::ImageFormt;
@@ -203,6 +204,91 @@ fn export_thumbnails_from_photo_library_parallel() -> Result<(), Box<dyn std::er
 }
 
 #[test]
+#[ignore]
+fn get_thumbnail_from_photo_library_parallel() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
+    // Pin rayon to 8 threads for consistent test behavior; ignore error if already set.
+    // let _ = rayon::ThreadPoolBuilder::new().num_threads(8).build_global();
+    let start = Instant::now();
+
+    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+
+    if !scan_root.exists() {
+        eprintln!(
+            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
+            scan_root
+        );
+        return Ok(());
+    }
+
+    let files = scan_supported_files(&scan_root)?;
+    log::debug!(
+        "🟢 Found {} supported RAW files under path {:?}",
+        files.len(),
+        scan_root
+    );
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let successes = AtomicUsize::new(0);
+    let failures: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
+
+    let config = ExportConfig::default()
+        .with_auto_rotate(true)
+        .with_max_border(Some(3840));
+    let exporter = Arc::new(ThumbnailExporter::new_with_config(config));
+
+    files.par_iter().for_each(|path| {
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let path_str = path.to_str().ok_or("invalid path string")?;
+            let thumb = exporter.export(path_str)?;
+            log::debug!(
+                "✅ {} | jpeg_len={} rotated={} resized={}",
+                path.to_string_lossy(),
+                thumb.jpeg.len(),
+                thumb.is_rotated,
+                thumb.is_resized
+            );
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                successes.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(e) => {
+                log::error!("Failed get_thumbnail for {}: {:?}", path.display(), e);
+                if let Ok(mut guard) = failures.lock() {
+                    guard.push((path.clone(), e.to_string()));
+                }
+            }
+        }
+    });
+
+    let failures_guard = failures.into_inner().unwrap_or_default();
+    let success_count = successes.load(Ordering::Relaxed);
+    log::debug!(
+        "🟢 Summary: {} succeeded, {} failed; total time: {:?}, average: {:?}",
+        success_count,
+        failures_guard.len(),
+        start.elapsed(),
+        start.elapsed() / (success_count as u32 + failures_guard.len() as u32)
+    );
+    log::debug!("=========================");
+
+    if !failures_guard.is_empty() {
+        for (path, msg) in failures_guard {
+            eprintln!("🟢 {}: {}", path.to_string_lossy(), msg);
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
 fn read_orientation_from_raw_fixture() -> Result<(), Box<dyn std::error::Error>> {
     init_logger();
 
@@ -304,7 +390,7 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
         if let Some(parent) = out_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        exporter.export_thumbnail_to_file(path.to_str().unwrap(), &out_path.to_string_lossy())?;
+        exporter.export_to_file(path.to_str().unwrap(), &out_path.to_string_lossy())?;
         let bytes = fs::read(&out_path)?;
         assert!(
             bytes.len() >= 2 && bytes[0] == 0xff && bytes[1] == 0xd8,
@@ -468,7 +554,7 @@ fn process_file(
     }
 
     let output_path_str = output_path.to_string_lossy().to_string();
-    exporter.export_thumbnail_to_file(path.to_str().unwrap(), &output_path_str)?;
+    exporter.export_to_file(path.to_str().unwrap(), &output_path_str)?;
 
     // Basic validation of the output JPEG.
     let output_bytes = fs::read(&output_path)?;
