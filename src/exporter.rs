@@ -64,12 +64,14 @@ impl ThumbnailExporter {
         let file = fs::File::open(input_path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
         let thumb = self.get_thumbnail(&mmap)?;
-        log::debug!(
+
+        log::trace!(
             "Exporting thumbnail (rotated={}, resized={}) to {}",
             thumb.is_rotated,
             thumb.is_resized,
             output_path
         );
+
         fs::write(output_path, thumb.jpeg)?;
         Ok(())
     }
@@ -81,12 +83,9 @@ impl ThumbnailExporter {
             return Ok(result);
         }
 
-        // let previous_hook = std::panic::take_hook();
-        // std::panic::set_hook(Box::new(|_| {}));
         let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             RawMetadataParser::parse_with_cr3_fallback(self.exif_reader.as_ref(), buffer)
         }));
-        // std::panic::set_hook(previous_hook);
 
         match parsed {
             Ok(Ok((parsed, basic, buf))) => self.select_extractor_and_decode(buf, parsed, basic),

@@ -90,14 +90,14 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                 return Self::fallback_thumbnail(buffer, exif);
             }
             Ok(Err(e)) => {
-                log::warn!(
+                log::trace!(
                     "Olympus maker note parse failed ({}); falling back to JPEG scan",
                     e
                 );
                 return Self::fallback_thumbnail(buffer, exif);
             }
             Err(_) => {
-                log::warn!("Olympus maker note parse panicked; falling back to JPEG scan");
+                log::trace!("Olympus maker note parse panicked; falling back to JPEG scan");
                 return Self::fallback_thumbnail(buffer, exif);
             }
         };
@@ -115,14 +115,14 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                     let orientation: Orientation = raw_info.orientation();
                     Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
                 } else {
-                    log::warn!(
+                    log::trace!(
                         "Olympus maker-note thumbnail failed validation; falling back to JPEG scan"
                     );
                     Self::fallback_thumbnail(buffer, exif)
                 }
             }
             Err(e) => {
-                log::warn!(
+                log::trace!(
                     "Olympus preview offsets missing or invalid ({}); falling back to JPEG scan",
                     e
                 );

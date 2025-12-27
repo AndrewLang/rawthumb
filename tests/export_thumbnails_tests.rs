@@ -2,7 +2,11 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::Once;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use rawthumb::ThumbnailExporter;
@@ -11,6 +15,7 @@ use rawthumb::core::image_format::ImageFormt;
 use rawthumb::core::image_helper::ImageHelper;
 use rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use rawthumb::export_config::ExportConfig;
+use rayon::prelude::*;
 
 fn init_logger() {
     static INIT: Once = Once::new();
@@ -49,7 +54,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
 
     let files = scan_supported_files(&scan_root)?;
     log::debug!(
-        " 🟢 Found {} supported RAW files under path {:?}",
+        "🟢 Found {} supported RAW files under path {:?}",
         files.len(),
         scan_root
     );
@@ -64,7 +69,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     fs::create_dir_all(&output_root)?;
 
     log::debug!(
-        " 🟢 Exporting thumbnails into {}",
+        "🟢 Exporting thumbnails into {}",
         output_root.to_string_lossy().to_string()
     );
 
@@ -89,7 +94,7 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     }
 
     log::debug!(
-        " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        "🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
         output_root,
@@ -107,6 +112,90 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
         // return Err(format!(" 💥 Some files failed:\n{}", messages).into());
         for message in messages.lines() {
             eprintln!(" 💥 {}", message);
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn export_thumbnails_from_photo_library_parallel() -> Result<(), Box<dyn std::error::Error>> {
+    init_logger();
+    // Pin rayon to 8 threads for consistent test behavior; ignore error if already set.
+    // let _ = rayon::ThreadPoolBuilder::new().num_threads(8).build_global();
+    let start = Instant::now();
+
+    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+
+    if !scan_root.exists() {
+        eprintln!(
+            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
+            scan_root
+        );
+        return Ok(());
+    }
+
+    let files = scan_supported_files(&scan_root)?;
+    log::debug!(
+        "🟢 Found {} supported RAW files under path {:?}",
+        files.len(),
+        scan_root
+    );
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let output_root = env::var("RAWTHUMB_OUTPUT_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
+    fs::create_dir_all(&output_root)?;
+
+    log::debug!(
+        "🟢 Exporting thumbnails into {}",
+        output_root.to_string_lossy().to_string()
+    );
+
+    let successes = AtomicUsize::new(0);
+    let failures: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
+
+    let config = ExportConfig::default()
+        .with_auto_rotate(true)
+        .with_max_border(Some(3840));
+    let exporter = Arc::new(ThumbnailExporter::new_with_config(config));
+
+    files.par_iter().for_each(|path| {
+        let result = process_file(path, &scan_root, &output_root, exporter.as_ref());
+        match result {
+            Ok(()) => {
+                successes.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(e) => {
+                log::error!("Failed to export thumbnail for {}: {:?}", path.display(), e);
+                if let Ok(mut guard) = failures.lock() {
+                    guard.push((path.clone(), e.to_string()));
+                }
+            }
+        }
+    });
+
+    let failures_guard = failures.into_inner().unwrap_or_default();
+    let success_count = successes.load(Ordering::Relaxed);
+    log::debug!(
+        "🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        success_count,
+        failures_guard.len(),
+        output_root,
+        start.elapsed(),
+        start.elapsed() / (success_count as u32 + failures_guard.len() as u32)
+    );
+    log::debug!("=========================");
+
+    if !failures_guard.is_empty() {
+        for (path, msg) in failures_guard {
+            eprintln!(" dY' {}: {}", path.to_string_lossy(), msg);
         }
     }
 
@@ -226,7 +315,7 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
 
     log::debug!("============================================================================");
     log::debug!(
-        " 🟢 Exported {} .{} thumbnails under {:?} in {:?}, average time per thumbnail: {:?}",
+        "🟢 Exported {} .{} thumbnails under {:?} in {:?}, average time per thumbnail: {:?}",
         count,
         target_ext,
         output_root,
@@ -271,7 +360,7 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     log::debug!(
-        " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        "🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
         output_root,
@@ -331,7 +420,7 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     log::debug!(
-        " 🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
+        "🟢 Summary: {} succeeded, {} failed; outputs at {:?}, total time: {:?}, average: {:?}",
         successes,
         failures.len(),
         output_root,
