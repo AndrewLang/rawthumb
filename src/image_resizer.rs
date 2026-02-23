@@ -12,11 +12,7 @@ use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
 fn create_resizer() -> Resizer {
     let mut resizer = Resizer::new();
     unsafe {
-        if CpuExtensions::Avx2.is_supported() {
-            resizer.set_cpu_extensions(CpuExtensions::Avx2);
-        } else if CpuExtensions::Sse4_1.is_supported() {
-            resizer.set_cpu_extensions(CpuExtensions::Sse4_1);
-        }
+        resizer.set_cpu_extensions(CpuExtensions::default());
     }
     resizer
 }
