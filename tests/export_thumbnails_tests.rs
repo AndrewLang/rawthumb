@@ -16,7 +16,7 @@ use rawthumb::core::image_format::ImageFormt;
 use rawthumb::core::image_helper::ImageHelper;
 use rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use rawthumb::export_config::ExportConfig;
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 fn init_logger() {
     static INIT: Once = Once::new();
