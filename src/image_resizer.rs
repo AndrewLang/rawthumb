@@ -4,13 +4,19 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 
 use fast_image_resize::images::Image;
-use fast_image_resize::{CpuExtensions, PixelType, ResizeAlg, ResizeOptions, Resizer};
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use fast_image_resize::CpuExtensions;
+use fast_image_resize::{PixelType, ResizeAlg, ResizeOptions, Resizer};
 use turbojpeg::{Compressor, Decompressor, Image as TjImage, PixelFormat, Subsamp};
 
 use crate::rawthumb::core::errors::{ImageProcessingError, Result as CoreResult};
 
 fn create_resizer() -> Resizer {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     let mut resizer = Resizer::new();
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    let resizer = Resizer::new();
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     unsafe {
         if CpuExtensions::Avx2.is_supported() {
             resizer.set_cpu_extensions(CpuExtensions::Avx2);
