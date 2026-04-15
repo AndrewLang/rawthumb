@@ -51,8 +51,8 @@ impl ThumbnailExporter {
 
     pub fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> CoreResult<ThumbnailResult<'a>> {
         let result = self.decode_thumbnail(buffer)?;
-        let rotated = self.apply_auto_rotate(result)?;
-        self.apply_resize(rotated)
+        let resized = self.apply_resize(result)?;
+        self.apply_auto_rotate(resized)
     }
 
     pub fn export(&self, input_path: &str) -> CoreResult<ThumbnailResult<'static>> {
