@@ -184,14 +184,7 @@ impl ImageResizer for DefaultImageResizer {
             let mut rgb_data = rgb_buf_cell.borrow_mut();
             let (scaled_w, scaled_h) = self.decode_scaled_to_rgb(buffer, w, h, dst_max, &mut rgb_data)?;
 
-            log::info!(
-                "🟢 Decoded JPEG in [{:?}] for size {}x{} -> {}x{}",
-                start.elapsed(),
-                w,
-                h,
-                scaled_w,
-                scaled_h
-            );
+            log::info!("🟢 Decoded JPEG in [{:?}] for size {}x{} -> {}x{}", start.elapsed(), w, h, scaled_w, scaled_h);
             start = std::time::Instant::now();
 
             if scaled_w == dst_w && scaled_h == dst_h {
@@ -204,9 +197,7 @@ impl ImageResizer for DefaultImageResizer {
                 };
 
                 return TLS_COMPRESSOR.with(|c| {
-                    c.borrow_mut()
-                        .compress_to_vec(image)
-                        .map_err(|e| ImageProcessingError::Raw(e.to_string()))
+                    c.borrow_mut().compress_to_vec(image).map_err(|e| ImageProcessingError::Raw(e.to_string()))
                 });
             }
 
@@ -249,9 +240,7 @@ impl ImageResizer for DefaultImageResizer {
                 };
 
                 TLS_COMPRESSOR.with(|c| {
-                    c.borrow_mut()
-                        .compress_to_vec(image)
-                        .map_err(|e| ImageProcessingError::Raw(e.to_string()))
+                    c.borrow_mut().compress_to_vec(image).map_err(|e| ImageProcessingError::Raw(e.to_string()))
                 })
             })
         })?;

@@ -27,15 +27,9 @@ impl FormatRegistry {
     }
 
     pub fn try_fast_path<'a>(&self, buffer: &'a [u8]) -> Option<ThumbnailResult<'a>> {
-        self.processors
-            .iter()
-            .find_map(|processor| processor.try_extract(buffer))
+        self.processors.iter().find_map(|processor| processor.try_extract(buffer))
     }
 }
 
-pub static FORMAT_REGISTRY: Lazy<FormatRegistry> = Lazy::new(|| {
-    FormatRegistry::new(vec![
-        Arc::new(FujiPreprocessor),
-        Arc::new(Cr3Processor::new()),
-    ])
-});
+pub static FORMAT_REGISTRY: Lazy<FormatRegistry> =
+    Lazy::new(|| FormatRegistry::new(vec![Arc::new(FujiPreprocessor), Arc::new(Cr3Processor::new())]));

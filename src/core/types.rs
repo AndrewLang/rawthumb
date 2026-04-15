@@ -27,11 +27,6 @@ pub struct ThumbnailResult<'a> {
 
 impl<'a> ThumbnailResult<'a> {
     pub fn new(jpeg: Cow<'a, [u8]>, orientation: Orientation) -> Self {
-        Self {
-            jpeg,
-            orientation,
-            is_rotated: false,
-            is_resized: false,
-        }
+        Self { jpeg, orientation, is_rotated: false, is_resized: false }
     }
 }

@@ -9,8 +9,8 @@ use crate::rawthumb::core::thumbnail_registry::ThumbnailRegistry;
 use crate::rawthumb::core::types::RawMetadata;
 use crate::rawthumb::makers::{
     adobe::AdobeThumbnailExtractor, canon::CanonThumbnailExtractor, fuji::FujiThumbnailExtractor,
-    nikon::NikonThumbnailExtractor, olympus::OlympusThumbnailExtractor,
-    panasonic::PanasonicThumbnailExtractor, sony::SonyThumbnailExtractor,
+    nikon::NikonThumbnailExtractor, olympus::OlympusThumbnailExtractor, panasonic::PanasonicThumbnailExtractor,
+    sony::SonyThumbnailExtractor,
 };
 
 pub struct MakerRegistry {
@@ -23,11 +23,7 @@ impl MakerRegistry {
     }
 
     pub fn effective_make<'a>(&self, basic: &'a RawMetadata) -> &'a str {
-        if basic.dng_version.is_some() {
-            "ADOBE"
-        } else {
-            basic.make.as_str()
-        }
+        if basic.dng_version.is_some() { "ADOBE" } else { basic.make.as_str() }
     }
 
     pub fn find<'a>(&self, basic: &'a RawMetadata) -> Option<&Arc<dyn ThumbnailExtractor>> {

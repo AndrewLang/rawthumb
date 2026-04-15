@@ -37,14 +37,7 @@ pub struct ParsedExif {
 
 impl ParsedExif {
     pub fn debug_summary(&self) -> String {
-        format!(
-            "ParsedExif(fields={})",
-            self.inner
-                .stringify_all()
-                .unwrap_or_default()
-                .lines()
-                .count()
-        )
+        format!("ParsedExif(fields={})", self.inner.stringify_all().unwrap_or_default().lines().count())
     }
 
     pub fn u16(&self, name: &str) -> ExifFieldResult<u16> {
@@ -166,9 +159,7 @@ impl QuickExifReader {
 
     #[inline]
     fn parse_rule(&self, buffer: &[u8], rule: &ExifParsingRule) -> ExifResult<ParsedExif> {
-        quickexif::parse(buffer, rule.inner())
-            .map(ParsedExif::from)
-            .map_err(ExifError::from)
+        quickexif::parse(buffer, rule.inner()).map(ParsedExif::from).map_err(ExifError::from)
     }
 
     #[inline]
@@ -190,15 +181,13 @@ impl QuickExifReader {
         is_value_u16: bool,
         len_name: Option<&'static str>,
     ) -> Option<ParsedExif> {
-        let rule = ExifParsingRule::new(quickexif::ParsingRule::Tiff(vec![
-            quickexif::ParsingRule::TagItem {
-                tag,
-                name: ExifNames::TAG_VALUE,
-                len: len_name,
-                is_optional: true,
-                is_value_u16,
-            },
-        ]));
+        let rule = ExifParsingRule::new(quickexif::ParsingRule::Tiff(vec![quickexif::ParsingRule::TagItem {
+            tag,
+            name: ExifNames::TAG_VALUE,
+            len: len_name,
+            is_optional: true,
+            is_value_u16,
+        }]));
         self.parse_rule(buffer, &rule).ok()
     }
 }
@@ -236,18 +225,13 @@ impl ExifReader for QuickExifReader {
     }
 
     fn get_tag_u32(&self, buffer: &[u8], tag: u16) -> Option<u32> {
-        self.parse_tag(buffer, tag, false, None)
-            .and_then(|p| p.u32(ExifNames::TAG_VALUE).ok())
+        self.parse_tag(buffer, tag, false, None).and_then(|p| p.u32(ExifNames::TAG_VALUE).ok())
     }
 
     fn get_tag_bytes<'a>(&self, buffer: &'a [u8], tag: u16) -> Option<&'a [u8]> {
         let parsed = self.parse_tag(buffer, tag, false, Some(ExifNames::TAG_LEN))?;
         let offset = parsed.u32(ExifNames::TAG_VALUE).ok()? as usize;
         let len = parsed.u32(ExifNames::TAG_LEN).ok()? as usize;
-        if offset + len <= buffer.len() {
-            Some(&buffer[offset..offset + len])
-        } else {
-            None
-        }
+        if offset + len <= buffer.len() { Some(&buffer[offset..offset + len]) } else { None }
     }
 }

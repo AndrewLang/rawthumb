@@ -33,19 +33,13 @@ static NIKON_FAST_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct NikonDecoder;
 
 impl NikonDecoder {
-    fn get_thumbnail<'a>(
-        &self,
-        buffer: &'a [u8],
-        exif: &ParsedExif,
-    ) -> std::result::Result<&'a [u8], DecodingError> {
+    fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
         let offset = exif.usize(ExifNames::THUMBNAIL)?;
         let len = exif.usize(ExifNames::THUMBNAIL_LEN)?;
         let end = offset
             .checked_add(len)
             .filter(|end| *end <= buffer.len())
-            .ok_or_else(|| {
-                DecodingError::RawInfoError(ExifFieldError::field_not_found("thumbnail_bounds"))
-            })?;
+            .ok_or_else(|| DecodingError::RawInfoError(ExifFieldError::field_not_found("thumbnail_bounds")))?;
         Ok(&buffer[offset..end])
     }
 }

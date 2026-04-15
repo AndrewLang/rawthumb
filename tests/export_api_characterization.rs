@@ -31,71 +31,24 @@ fn export_thumbnail_public_api_smoke() -> Result<(), Box<dyn std::error::Error>>
         let exporter = rawthumb::ThumbnailExporter::new();
         let result = exporter.get_thumbnail(&raw_bytes)?;
         let data = result.jpeg.as_ref();
-        assert!(
-            data.len() >= 2,
-            "get_thumbnail returned too few bytes for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            data[0], 0xFF,
-            "missing JPEG SOI marker 0xFF for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            data[1], 0xD8,
-            "missing JPEG SOI marker 0xD8 for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            data[data.len() - 2],
-            0xFF,
-            "missing JPEG EOI marker 0xFF for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            data[data.len() - 1],
-            0xD9,
-            "missing JPEG EOI marker 0xD9 for {:?}",
-            raw_path
-        );
+        assert!(data.len() >= 2, "get_thumbnail returned too few bytes for {:?}", raw_path);
+        assert_eq!(data[0], 0xFF, "missing JPEG SOI marker 0xFF for {:?}", raw_path);
+        assert_eq!(data[1], 0xD8, "missing JPEG SOI marker 0xD8 for {:?}", raw_path);
+        assert_eq!(data[data.len() - 2], 0xFF, "missing JPEG EOI marker 0xFF for {:?}", raw_path);
+        assert_eq!(data[data.len() - 1], 0xD9, "missing JPEG EOI marker 0xD9 for {:?}", raw_path);
 
         // export_thumbnail_to_file should write a JPEG file we can read back and validate.
-        let output_path = output_root
-            .path()
-            .join(entry.file_name())
-            .with_extension("jpg");
+        let output_path = output_root.path().join(entry.file_name()).with_extension("jpg");
         let output_path_str = output_path.to_string_lossy().to_string();
         let exporter = rawthumb::ThumbnailExporter::new();
         exporter.export_to_file(raw_path.to_str().unwrap(), &output_path_str)?;
 
         let written = fs::read(&output_path)?;
-        assert!(
-            written.len() >= 2,
-            "exported file too small for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            written[0], 0xFF,
-            "missing JPEG SOI marker 0xFF for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            written[1], 0xD8,
-            "missing JPEG SOI marker 0xD8 for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            written[written.len() - 2],
-            0xFF,
-            "missing JPEG EOI marker 0xFF for {:?}",
-            raw_path
-        );
-        assert_eq!(
-            written[written.len() - 1],
-            0xD9,
-            "missing JPEG EOI marker 0xD9 for {:?}",
-            raw_path
-        );
+        assert!(written.len() >= 2, "exported file too small for {:?}", raw_path);
+        assert_eq!(written[0], 0xFF, "missing JPEG SOI marker 0xFF for {:?}", raw_path);
+        assert_eq!(written[1], 0xD8, "missing JPEG SOI marker 0xD8 for {:?}", raw_path);
+        assert_eq!(written[written.len() - 2], 0xFF, "missing JPEG EOI marker 0xFF for {:?}", raw_path);
+        assert_eq!(written[written.len() - 1], 0xD9, "missing JPEG EOI marker 0xD9 for {:?}", raw_path);
     }
 
     Ok(())

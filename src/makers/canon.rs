@@ -25,11 +25,7 @@ pub static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct CanonDecoder;
 
 impl CanonDecoder {
-    fn get_thumbnail<'a>(
-        &self,
-        buffer: &'a [u8],
-        exif: &ParsedExif,
-    ) -> std::result::Result<&'a [u8], DecodingError> {
+    fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
         if let Some(exif_jpeg) = ImageHelper::jpeg_from_exif(buffer, exif) {
             return Ok(exif_jpeg);
         }
@@ -38,9 +34,7 @@ impl CanonDecoder {
             return Ok(scanned);
         }
 
-        Err(DecodingError::RawInfoError(
-            ExifFieldError::field_not_found(ExifNames::THUMBNAIL),
-        ))
+        Err(DecodingError::RawInfoError(ExifFieldError::field_not_found(ExifNames::THUMBNAIL)))
     }
 }
 

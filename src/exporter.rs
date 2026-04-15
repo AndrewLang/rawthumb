@@ -22,31 +22,19 @@ pub struct ThumbnailExporter {
 
 impl ThumbnailExporter {
     pub fn new() -> Self {
-        Self {
-            exif_reader: Arc::new(QuickExifReader::new()),
-            config: ExportConfig::default(),
-        }
+        Self { exif_reader: Arc::new(QuickExifReader::new()), config: ExportConfig::default() }
     }
 
     pub fn new_with_exif(exif: Arc<dyn ExifReader>) -> Self {
-        Self {
-            exif_reader: exif,
-            config: ExportConfig::default(),
-        }
+        Self { exif_reader: exif, config: ExportConfig::default() }
     }
 
     pub fn new_with_config(config: ExportConfig) -> Self {
-        Self {
-            exif_reader: Arc::new(QuickExifReader::new()),
-            config,
-        }
+        Self { exif_reader: Arc::new(QuickExifReader::new()), config }
     }
 
     pub fn new_with_exif_and_config(exif: Arc<dyn ExifReader>, config: ExportConfig) -> Self {
-        Self {
-            exif_reader: exif,
-            config,
-        }
+        Self { exif_reader: exif, config }
     }
 
     pub fn get_thumbnail<'a>(&self, buffer: &'a [u8]) -> CoreResult<ThumbnailResult<'a>> {
@@ -101,24 +89,16 @@ impl ThumbnailExporter {
             Ok(Ok((parsed, basic, buf))) => self.select_extractor_and_decode(buf, parsed, basic),
             Ok(Err(e)) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
-                    Ok(ThumbnailResult::new(
-                        Cow::Borrowed(jpeg),
-                        Orientation::Horizontal,
-                    ))
+                    Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), Orientation::Horizontal))
                 } else {
                     Err(e)
                 }
             }
             Err(_) => {
                 if let Some(jpeg) = Self::fallback_jpeg(buffer) {
-                    Ok(ThumbnailResult::new(
-                        Cow::Borrowed(jpeg),
-                        Orientation::Horizontal,
-                    ))
+                    Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), Orientation::Horizontal))
                 } else {
-                    Err(ImageProcessingError::Raw(
-                        "Panic while parsing EXIF; JPEG fallback failed".to_string(),
-                    ))
+                    Err(ImageProcessingError::Raw("Panic while parsing EXIF; JPEG fallback failed".to_string()))
                 }
             }
         }
@@ -130,29 +110,19 @@ impl ThumbnailExporter {
         basic_parsed: ParsedExif,
         metadata: RawMetadata,
     ) -> CoreResult<ThumbnailResult<'a>> {
-        let extractor = MAKER_REGISTRY.find(&metadata).ok_or_else(|| {
-            ImageProcessingError::Raw(format!("Maker is not supported: {}", metadata.make))
-        })?;
+        let extractor = MAKER_REGISTRY
+            .find(&metadata)
+            .ok_or_else(|| ImageProcessingError::Raw(format!("Maker is not supported: {}", metadata.make)))?;
 
         match extractor.extract(buffer, &metadata, self.exif_reader.as_ref(), basic_parsed) {
             Ok(res) => Ok(res),
             Err(ImageProcessingError::ExifParse(e)) if e.tag_not_found().is_some() => {
-                if let Some(jpeg) = ImageHelper::extract_valid_jpeg_with_cap(
-                    buffer,
-                    64 * 1024 * 1024,
-                    16 * 1024,
-                    true,
-                )
-                .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
+                if let Some(jpeg) = ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 16 * 1024, true)
+                    .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
                 {
-                    Ok(ThumbnailResult::new(
-                        Cow::Borrowed(jpeg),
-                        Orientation::Horizontal,
-                    ))
+                    Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), Orientation::Horizontal))
                 } else {
-                    Err(ImageProcessingError::Raw(
-                        "Fallback JPEG scan failed after missing EXIF tag".to_string(),
-                    ))
+                    Err(ImageProcessingError::Raw("Fallback JPEG scan failed after missing EXIF tag".to_string()))
                 }
             }
             Err(e) => Err(ImageProcessingError::from(e)),
@@ -162,46 +132,24 @@ impl ThumbnailExporter {
     fn fallback_jpeg<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
         // Try a small scan first to avoid expensive full-buffer walks on failures.
         ImageHelper::extract_valid_jpeg_with_cap(buffer, 16 * 1024 * 1024, 16 * 1024, true)
-            .or_else(|| {
-                ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true)
-            })
+            .or_else(|| ImageHelper::extract_valid_jpeg_with_cap(buffer, 128 * 1024 * 1024, 16 * 1024, true))
             .or_else(|| ImageHelper::extract_best_jpeg_capped(buffer, buffer.len()))
             .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer))
     }
 
-    fn apply_auto_rotate<'a>(
-        &self,
-        result: ThumbnailResult<'a>,
-    ) -> CoreResult<ThumbnailResult<'a>> {
+    fn apply_auto_rotate<'a>(&self, result: ThumbnailResult<'a>) -> CoreResult<ThumbnailResult<'a>> {
         if !self.config.auto_rotate || result.orientation == Orientation::Horizontal {
             return Ok(result);
         }
 
-        log::trace!(
-            "🔄 Auto-rotating thumbnail with orientation {:?}",
-            result.orientation
-        );
+        log::trace!("🔄 Auto-rotating thumbnail with orientation {:?}", result.orientation);
 
-        let ThumbnailResult {
-            jpeg,
-            orientation,
-            is_rotated,
-            is_resized,
-        } = result;
+        let ThumbnailResult { jpeg, orientation, is_rotated, is_resized } = result;
         let rotated = match self.config.rotator.rotate(jpeg.as_ref(), orientation) {
             Ok(r) => r,
             Err(e) => {
-                log::warn!(
-                    "Auto-rotate failed for orientation {:?}: {}; returning original thumbnail",
-                    orientation,
-                    e
-                );
-                return Ok(ThumbnailResult {
-                    jpeg,
-                    orientation: Orientation::Horizontal,
-                    is_rotated,
-                    is_resized,
-                });
+                log::warn!("Auto-rotate failed for orientation {:?}: {}; returning original thumbnail", orientation, e);
+                return Ok(ThumbnailResult { jpeg, orientation: Orientation::Horizontal, is_rotated, is_resized });
             }
         };
 
@@ -226,24 +174,14 @@ impl ThumbnailExporter {
             return Ok(result);
         }
 
-        let ThumbnailResult {
-            jpeg,
-            orientation,
-            is_rotated,
-            is_resized,
-        } = result;
+        let ThumbnailResult { jpeg, orientation, is_rotated, is_resized } = result;
         let resized = self.config.resizer.resize(jpeg.as_ref(), max_border)?;
         let (jpeg, was_resized) = match resized {
             Cow::Borrowed(_) => (jpeg, false),
             Cow::Owned(buf) => (Cow::Owned(buf), true),
         };
 
-        Ok(ThumbnailResult {
-            jpeg,
-            orientation,
-            is_rotated,
-            is_resized: is_resized || was_resized,
-        })
+        Ok(ThumbnailResult { jpeg, orientation, is_rotated, is_resized: is_resized || was_resized })
     }
 }
 

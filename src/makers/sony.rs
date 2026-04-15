@@ -21,11 +21,7 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct SonyDecoder;
 
 impl SonyDecoder {
-    fn get_thumbnail<'a>(
-        &self,
-        buffer: &'a [u8],
-        exif: &ParsedExif,
-    ) -> std::result::Result<&'a [u8], DecodingError> {
+    fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
         let offset = exif.usize(ExifNames::PREVIEW_OFFSET)?;
         let len = exif.usize(ExifNames::PREVIEW_LEN)?;
         Ok(&buffer[offset..offset + len])

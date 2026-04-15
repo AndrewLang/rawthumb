@@ -34,11 +34,7 @@ static THUMBNAIL_RULE: Lazy<ExifParsingRule> = Lazy::new(|| {
 struct OlympusDecoder;
 
 impl OlympusDecoder {
-    fn get_thumbnail<'a>(
-        &self,
-        buffer: &'a [u8],
-        exif: &ParsedExif,
-    ) -> std::result::Result<&'a [u8], DecodingError> {
+    fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
         let base = exif.usize(ExifNames::MAKER_NOTES)?;
         let offset = exif.usize(ExifNames::PREVIEW_IMAGE_START)?;
         let len = exif.usize(ExifNames::PREVIEW_IMAGE_LEN)?;
@@ -60,10 +56,7 @@ pub struct OlympusThumbnailExtractor {
 
 impl ThumbnailExtractor for OlympusThumbnailExtractor {
     fn supports_make(&self, make: &str) -> bool {
-        matches!(
-            make,
-            "OLYMPUS CORPORATION" | "OLYMPUS IMAGING CORP." | "OM Digital Solutions"
-        )
+        matches!(make, "OLYMPUS CORPORATION" | "OLYMPUS IMAGING CORP." | "OM Digital Solutions")
     }
 
     fn extract<'a>(
@@ -75,25 +68,19 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
     ) -> Result<ThumbnailResult<'a>> {
         let previous_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));
-        let parse_result = catch_unwind(AssertUnwindSafe(|| {
-            exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)
-        }));
+        let parse_result =
+            catch_unwind(AssertUnwindSafe(|| exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)));
         std::panic::set_hook(previous_hook);
 
         let raw_info = match parse_result {
             Ok(Ok(info)) => info,
             Ok(Err(e)) if matches!(e.tag_not_found(), Some(_)) => {
                 let tag = e.tag_not_found().unwrap_or(0);
-                log::trace!(
-                    "Olympus maker note tag 0x{tag:04x} missing; falling back to JPEG scan"
-                );
+                log::trace!("Olympus maker note tag 0x{tag:04x} missing; falling back to JPEG scan");
                 return Self::fallback_thumbnail(buffer, exif);
             }
             Ok(Err(e)) => {
-                log::trace!(
-                    "Olympus maker note parse failed ({}); falling back to JPEG scan",
-                    e
-                );
+                log::trace!("Olympus maker note parse failed ({}); falling back to JPEG scan", e);
                 return Self::fallback_thumbnail(buffer, exif);
             }
             Err(_) => {
@@ -102,10 +89,7 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
             }
         };
 
-        log::trace!(
-            " 🪓 Olympus extracted raw_info: {}",
-            raw_info.debug_summary()
-        );
+        log::trace!(" 🪓 Olympus extracted raw_info: {}", raw_info.debug_summary());
         match self.decoder.get_thumbnail(buffer, &raw_info) {
             Ok(thumbnail) => {
                 if thumbnail.len() >= 8 * 1024
@@ -115,17 +99,12 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
                     let orientation: Orientation = raw_info.orientation();
                     Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
                 } else {
-                    log::trace!(
-                        "Olympus maker-note thumbnail failed validation; falling back to JPEG scan"
-                    );
+                    log::trace!("Olympus maker-note thumbnail failed validation; falling back to JPEG scan");
                     Self::fallback_thumbnail(buffer, exif)
                 }
             }
             Err(e) => {
-                log::trace!(
-                    "Olympus preview offsets missing or invalid ({}); falling back to JPEG scan",
-                    e
-                );
+                log::trace!("Olympus preview offsets missing or invalid ({}); falling back to JPEG scan", e);
                 Self::fallback_thumbnail(buffer, exif)
             }
         }
@@ -133,27 +112,13 @@ impl ThumbnailExtractor for OlympusThumbnailExtractor {
 }
 
 impl OlympusThumbnailExtractor {
-    fn fallback_thumbnail<'a>(
-        buffer: &'a [u8],
-        exif: &dyn ExifReader,
-    ) -> Result<ThumbnailResult<'a>> {
-        let valid = |jpeg: &[u8]| {
-            jpeg.len() >= 8 * 1024
-                && ImageHelper::is_valid_jpeg(jpeg)
-                && ImageHelper::jpeg_has_sof(jpeg)
-        };
+    fn fallback_thumbnail<'a>(buffer: &'a [u8], exif: &dyn ExifReader) -> Result<ThumbnailResult<'a>> {
+        let valid =
+            |jpeg: &[u8]| jpeg.len() >= 8 * 1024 && ImageHelper::is_valid_jpeg(jpeg) && ImageHelper::jpeg_has_sof(jpeg);
 
         // Try a capped fast scan first to avoid scanning huge buffers.
-        if let Some(jpeg) =
-            ImageHelper::extract_valid_jpeg_with_cap(buffer, 16 * 1024 * 1024, 32 * 1024, true)
-                .or_else(|| {
-                    ImageHelper::extract_valid_jpeg_with_cap(
-                        buffer,
-                        64 * 1024 * 1024,
-                        32 * 1024,
-                        true,
-                    )
-                })
+        if let Some(jpeg) = ImageHelper::extract_valid_jpeg_with_cap(buffer, 16 * 1024 * 1024, 32 * 1024, true)
+            .or_else(|| ImageHelper::extract_valid_jpeg_with_cap(buffer, 64 * 1024 * 1024, 32 * 1024, true))
         {
             if valid(jpeg) {
                 let orientation = match exif.get_orientation(buffer) {
@@ -168,8 +133,7 @@ impl OlympusThumbnailExtractor {
         if let Some(jpeg) = ImageHelper::extract_best_jpeg_capped(buffer, 128 * 1024 * 1024)
             .filter(|j| valid(j))
             .or_else(|| {
-                ImageHelper::extract_largest_jpeg_segment_capped(buffer, 128 * 1024 * 1024)
-                    .filter(|j| valid(j))
+                ImageHelper::extract_largest_jpeg_segment_capped(buffer, 128 * 1024 * 1024).filter(|j| valid(j))
             })
             .or_else(|| ImageHelper::extract_best_jpeg(buffer).filter(|j| valid(j)))
             .or_else(|| ImageHelper::extract_largest_jpeg_segment(buffer).filter(|j| valid(j)))
@@ -182,8 +146,6 @@ impl OlympusThumbnailExtractor {
             };
             return Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation));
         }
-        Err(ImageProcessingError::Raw(
-            "Olympus thumbnail not found in maker notes or JPEG scan".to_string(),
-        ))
+        Err(ImageProcessingError::Raw("Olympus thumbnail not found in maker notes or JPEG scan".to_string()))
     }
 }

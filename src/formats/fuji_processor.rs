@@ -6,11 +6,7 @@ pub struct FujiPreprocessor;
 
 impl FujiPreprocessor {
     fn apply_fix<'a>(&self, buffer: &'a [u8]) -> &'a [u8] {
-        if buffer.len() >= 4 && &buffer[..4] == b"FUJI" {
-            &buffer[148..]
-        } else {
-            buffer
-        }
+        if buffer.len() >= 4 && &buffer[..4] == b"FUJI" { &buffer[148..] } else { buffer }
     }
 }
 

@@ -16,14 +16,13 @@ use rawthumb::core::image_format::ImageFormt;
 use rawthumb::core::image_helper::ImageHelper;
 use rawthumb::core::raw_metadata_parser::RawMetadataParser;
 use rawthumb::export_config::ExportConfig;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::prelude::*;
 
 fn init_logger() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         // Default to chatty logs for this test suite but still respect RUST_LOG when set.
-        let env = env_logger::Env::default()
-            .default_filter_or("rawthumb=debug,export_thumbnails_from_raw=debug");
+        let env = env_logger::Env::default().default_filter_or("rawthumb=debug,export_thumbnails_from_raw=debug");
         env_logger::Builder::from_env(env)
             .target(env_logger::Target::Stdout)
             .format_timestamp_secs()
@@ -41,45 +40,31 @@ fn export_thumbnails_from_photo_library() -> Result<(), Box<dyn std::error::Erro
     init_logger();
     let start = Instant::now();
 
-    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+    let scan_root =
+        env::var("RAWTHUMB_SCAN_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
 
     if !scan_root.exists() {
-        eprintln!(
-            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
-            scan_root
-        );
+        eprintln!("scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun", scan_root);
         return Ok(());
     }
 
     let files = scan_supported_files(&scan_root)?;
-    log::debug!(
-        "🟢 Found {} supported RAW files under path {:?}",
-        files.len(),
-        scan_root
-    );
+    log::debug!("🟢 Found {} supported RAW files under path {:?}", files.len(), scan_root);
     if files.is_empty() {
         return Ok(());
     }
 
     // Determine output root from env or default to the requested path.
-    let output_root = env::var("RAWTHUMB_OUTPUT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
+    let output_root =
+        env::var("RAWTHUMB_OUTPUT_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
 
-    log::debug!(
-        "🟢 Exporting thumbnails into {}",
-        output_root.to_string_lossy().to_string()
-    );
+    log::debug!("🟢 Exporting thumbnails into {}", output_root.to_string_lossy().to_string());
 
     let mut successes = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
 
-    let config = ExportConfig::default()
-        .with_auto_rotate(true)
-        .with_max_border(Some(3840));
+    let config = ExportConfig::default().with_auto_rotate(true).with_max_border(Some(3840));
 
     let exporter = ThumbnailExporter::new_with_config(config);
     for path in files {
@@ -127,44 +112,30 @@ fn export_thumbnails_from_photo_library_parallel() -> Result<(), Box<dyn std::er
     // let _ = rayon::ThreadPoolBuilder::new().num_threads(8).build_global();
     let start = Instant::now();
 
-    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+    let scan_root =
+        env::var("RAWTHUMB_SCAN_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
 
     if !scan_root.exists() {
-        eprintln!(
-            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
-            scan_root
-        );
+        eprintln!("scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun", scan_root);
         return Ok(());
     }
 
     let files = scan_supported_files(&scan_root)?;
-    log::debug!(
-        "🟢 Found {} supported RAW files under path {:?}",
-        files.len(),
-        scan_root
-    );
+    log::debug!("🟢 Found {} supported RAW files under path {:?}", files.len(), scan_root);
     if files.is_empty() {
         return Ok(());
     }
 
-    let output_root = env::var("RAWTHUMB_OUTPUT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
+    let output_root =
+        env::var("RAWTHUMB_OUTPUT_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
 
-    log::debug!(
-        "🟢 Exporting thumbnails into {}",
-        output_root.to_string_lossy().to_string()
-    );
+    log::debug!("🟢 Exporting thumbnails into {}", output_root.to_string_lossy().to_string());
 
     let successes = AtomicUsize::new(0);
     let failures: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
 
-    let config = ExportConfig::default()
-        .with_auto_rotate(true)
-        .with_max_border(Some(3840));
+    let config = ExportConfig::default().with_auto_rotate(true).with_max_border(Some(3840));
     let exporter = Arc::new(ThumbnailExporter::new_with_config(config));
 
     files.par_iter().for_each(|path| {
@@ -211,24 +182,16 @@ fn get_thumbnail_from_photo_library_parallel() -> Result<(), Box<dyn std::error:
     // let _ = rayon::ThreadPoolBuilder::new().num_threads(8).build_global();
     let start = Instant::now();
 
-    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+    let scan_root =
+        env::var("RAWTHUMB_SCAN_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
 
     if !scan_root.exists() {
-        eprintln!(
-            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
-            scan_root
-        );
+        eprintln!("scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun", scan_root);
         return Ok(());
     }
 
     let files = scan_supported_files(&scan_root)?;
-    log::debug!(
-        "🟢 Found {} supported RAW files under path {:?}",
-        files.len(),
-        scan_root
-    );
+    log::debug!("🟢 Found {} supported RAW files under path {:?}", files.len(), scan_root);
     if files.is_empty() {
         return Ok(());
     }
@@ -236,9 +199,7 @@ fn get_thumbnail_from_photo_library_parallel() -> Result<(), Box<dyn std::error:
     let successes = AtomicUsize::new(0);
     let failures: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
 
-    let config = ExportConfig::default()
-        .with_auto_rotate(true)
-        .with_max_border(Some(3840));
+    let config = ExportConfig::default().with_auto_rotate(true).with_max_border(Some(3840));
     let exporter = Arc::new(ThumbnailExporter::new_with_config(config));
 
     files.par_iter().for_each(|path| {
@@ -293,10 +254,7 @@ fn read_orientation_from_raw_fixture() -> Result<(), Box<dyn std::error::Error>>
     init_logger();
 
     let fixtures_dir = PathBuf::from(r"D:\Photos\Brands");
-    let sample = fixtures_dir
-        .join("Canon")
-        .join("EOS R")
-        .join("Canon-eos-r-raw-00019.cr3");
+    let sample = fixtures_dir.join("Canon").join("EOS R").join("Canon-eos-r-raw-00019.cr3");
 
     if !sample.exists() {
         eprintln!("sample RAW {:?} missing; skipping", sample);
@@ -308,24 +266,13 @@ fn read_orientation_from_raw_fixture() -> Result<(), Box<dyn std::error::Error>>
     let orientation_tag = RawMetadataParser::parse_with_cr3_fallback(&reader, &buf)
         .ok()
         .and_then(|(parsed, _, exif_buf)| {
-            parsed
-                .u16(ExifNames::ORIENTATION)
-                .ok()
-                .or_else(|| reader.get_orientation(exif_buf))
+            parsed.u16(ExifNames::ORIENTATION).ok().or_else(|| reader.get_orientation(exif_buf))
         })
-        .or_else(|| {
-            ImageHelper::extract_canon_cr3_exif_segment(&buf)
-                .and_then(|seg| reader.get_orientation(seg))
-        })
+        .or_else(|| ImageHelper::extract_canon_cr3_exif_segment(&buf).and_then(|seg| reader.get_orientation(seg)))
         .or_else(|| reader.get_orientation(&buf));
 
     log::info!("Orientation for {:?}: {:?}", sample, orientation_tag);
-    assert_eq!(
-        orientation_tag,
-        Some(8),
-        "expected orientation=8 (Rotate270 CW) in {:?}",
-        sample
-    );
+    assert_eq!(orientation_tag, Some(8), "expected orientation=8 (Rotate270 CW) in {:?}", sample);
     Ok(())
 }
 
@@ -336,23 +283,17 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
 
     let start = Instant::now();
     let target_ext = env::var("RAWTHUMB_TARGET_EXT").unwrap_or_else(|_| "nef".to_string());
-    let scan_root = env::var("RAWTHUMB_SCAN_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
+    let scan_root =
+        env::var("RAWTHUMB_SCAN_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\Brands"));
 
     if !scan_root.exists() {
-        eprintln!(
-            "scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun",
-            scan_root
-        );
+        eprintln!("scan root {:?} not found; set RAWTHUMB_SCAN_ROOT to your library and rerun", scan_root);
         return Ok(());
     }
 
     let mut targets = Vec::new();
-    for entry in walkdir::WalkDir::new(&scan_root)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
+    for entry in
+        walkdir::WalkDir::new(&scan_root).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
         if path
@@ -373,14 +314,11 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
         return Ok(());
     }
     let count = targets.len();
-    let output_root = env::var("RAWTHUMB_OUTPUT_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
+    let output_root =
+        env::var("RAWTHUMB_OUTPUT_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(r"D:\Photos\temp"));
     fs::create_dir_all(&output_root)?;
 
-    let config = ExportConfig::default()
-        .with_auto_rotate(true)
-        .with_max_border(Some(3840));
+    let config = ExportConfig::default().with_auto_rotate(true).with_max_border(Some(3840));
 
     let exporter = ThumbnailExporter::new_with_config(config);
     for path in targets {
@@ -392,11 +330,7 @@ fn export_thumbnails_for_specific_ext() -> Result<(), Box<dyn std::error::Error>
         }
         exporter.export_to_file(path.to_str().unwrap(), &out_path.to_string_lossy())?;
         let bytes = fs::read(&out_path)?;
-        assert!(
-            bytes.len() >= 2 && bytes[0] == 0xff && bytes[1] == 0xd8,
-            "missing SOI for {:?}",
-            out_path
-        );
+        assert!(bytes.len() >= 2 && bytes[0] == 0xff && bytes[1] == 0xd8, "missing SOI for {:?}", out_path);
     }
 
     log::debug!("============================================================================");
@@ -420,9 +354,7 @@ fn export_thumbnails_test() -> Result<(), Box<dyn std::error::Error>> {
     let root = PathBuf::from(r"D:\Photos\Brands");
     let test_files = vec![
         root.join("Canon").join("EOS 90D").join("IMG_4011.cr3"),
-        root.join("Canon")
-            .join("EOS 7D")
-            .join("Canon - EOS 7D - RAW (3_2).CR2"),
+        root.join("Canon").join("EOS 7D").join("Canon - EOS 7D - RAW (3_2).CR2"),
         root.join("Nikon").join("D500").join("DSC_1284.NEF"),
     ];
 
@@ -469,15 +401,9 @@ fn export_thumbnails_from_dng_test() -> Result<(), Box<dyn std::error::Error>> {
     let test_files = vec![
         root.join("Canon/EOS R/Canon-eos-r-raw-00004.cr3"),
         root.join("Canon/EOS R/Canon-eos-r-raw-00019.cr3"),
-        root.join("Sony")
-            .join("A1")
-            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06683.dng"),
-        root.join("Sony")
-            .join("A1")
-            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06780.dng"),
-        root.join("Sony")
-            .join("A1")
-            .join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC07073.dng"),
+        root.join("Sony").join("A1").join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06683.dng"),
+        root.join("Sony").join("A1").join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC06780.dng"),
+        root.join("Sony").join("A1").join("tag @ryanbreitkreutz - free raws from @signatureeditsco - DSC07073.dng"),
         root.join("DJ").join("DJI-mavic-2-pro-raw-00005.dng"),
         root.join("DJ").join("DJI-mavic-2-pro-raw-00008.dng"),
         root.join("DJ").join("DJI-mavic-2-pro-raw-00007.dng"),
@@ -564,8 +490,7 @@ fn process_file(
     if output_bytes[0] != 0xFF || output_bytes[1] != 0xD8 {
         return Err(" 💥 Missing JPEG SOI marker".into());
     }
-    if output_bytes[output_bytes.len() - 2] != 0xFF || output_bytes[output_bytes.len() - 1] != 0xD9
-    {
+    if output_bytes[output_bytes.len() - 2] != 0xFF || output_bytes[output_bytes.len() - 1] != 0xD9 {
         return Err(" 💥 Missing JPEG EOI marker".into());
     }
 

@@ -28,20 +28,13 @@ impl FujiDecoder {
         ImageHelper::orientation_from_tag(exif.u16(ExifNames::ORIENTATION).ok())
     }
 
-    fn get_thumbnail<'a>(
-        &self,
-        buffer: &'a [u8],
-        exif: &ParsedExif,
-    ) -> std::result::Result<&'a [u8], DecodingError> {
+    fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
         let offset = exif.usize(ExifNames::THUMBNAIL)?;
         let len = exif.usize(ExifNames::THUMBNAIL_LEN)?;
         let jpeg_header_offset = 12;
         let tiny_thumbnail_offset = jpeg_header_offset + offset + len;
 
-        let jpeg_eoi = &buffer[tiny_thumbnail_offset..]
-            .windows(2)
-            .enumerate()
-            .find(|(_, data)| data == &[0xff, 0xd9]);
+        let jpeg_eoi = &buffer[tiny_thumbnail_offset..].windows(2).enumerate().find(|(_, data)| data == &[0xff, 0xd9]);
 
         match jpeg_eoi {
             None => Ok(&buffer[offset..tiny_thumbnail_offset]),
@@ -70,10 +63,7 @@ impl ThumbnailExtractor for FujiThumbnailExtractor {
     ) -> Result<ThumbnailResult<'a>> {
         let raw_info = exif.parse_with_prev_info(buffer, &THUMBNAIL_RULE, parsed)?;
         let thumbnail = self.decoder.get_thumbnail(buffer, &raw_info)?;
-        let orientation = self
-            .decoder
-            .get_orientation(&raw_info)
-            .unwrap_or(Orientation::Horizontal);
+        let orientation = self.decoder.get_orientation(&raw_info).unwrap_or(Orientation::Horizontal);
 
         log::trace!("Fuji thumbnail orientation from EXIF: {:?}", orientation);
 

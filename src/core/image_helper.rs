@@ -69,10 +69,7 @@ impl ImageHelper {
         Self::extract_largest_jpeg_segment_capped(buffer, buffer.len())
     }
 
-    pub fn extract_largest_jpeg_segment_capped<'a>(
-        buffer: &'a [u8],
-        max_scan_bytes: usize,
-    ) -> Option<&'a [u8]> {
+    pub fn extract_largest_jpeg_segment_capped<'a>(buffer: &'a [u8], max_scan_bytes: usize) -> Option<&'a [u8]> {
         let scan_end = buffer.len().min(max_scan_bytes);
         let mut cursor = 0usize;
         let mut best: Option<(usize, usize)> = None;
@@ -200,10 +197,7 @@ impl ImageHelper {
         Self::extract_best_jpeg_capped(buffer, buffer.len())
     }
 
-    pub fn extract_best_jpeg_capped<'a>(
-        buffer: &'a [u8],
-        max_scan_bytes: usize,
-    ) -> Option<&'a [u8]> {
+    pub fn extract_best_jpeg_capped<'a>(buffer: &'a [u8], max_scan_bytes: usize) -> Option<&'a [u8]> {
         let scan_end = buffer.len().min(max_scan_bytes);
         let mut cursor = 0usize;
         let mut best: Option<(usize, usize)> = None;
@@ -269,11 +263,7 @@ impl ImageHelper {
             return None;
         }
         let slice = &buffer[offset..end];
-        if Self::is_display_jpeg(slice) {
-            Some(slice)
-        } else {
-            None
-        }
+        if Self::is_display_jpeg(slice) { Some(slice) } else { None }
     }
 
     pub fn is_display_jpeg(slice: &[u8]) -> bool {
@@ -281,38 +271,28 @@ impl ImageHelper {
             return false;
         }
         // Look for JFIF/EXIF APP markers near the start; avoid lossless RAW JPEG data that lacks them.
-        slice
-            .windows(4)
-            .take(40)
-            .any(|w| w == [0xff, 0xe0, b'J', b'F'] || w == [0xff, 0xe1, b'E', b'x'])
+        slice.windows(4).take(40).any(|w| w == [0xff, 0xe0, b'J', b'F'] || w == [0xff, 0xe1, b'E', b'x'])
     }
 
     pub fn find_display_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
-        Self::find_largest_jpeg_slice(buffer)
-            .filter(|s| Self::is_display_jpeg(s))
-            .or_else(|| {
-                // As a fallback, return the first valid JPEG slice, even without APP markers.
-                let mut start = 0usize;
-                while let Some(rel_soi) = buffer[start..]
-                    .windows(3)
-                    .position(|w| w == [0xff, 0xd8, 0xff])
-                {
-                    let soi = start + rel_soi;
-                    if let Some(rel_eoi) =
-                        buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9])
-                    {
-                        let end = soi + 3 + rel_eoi + 2;
-                        let slice = &buffer[soi..end];
-                        if Self::is_valid_jpeg(slice) {
-                            return Some(slice);
-                        }
-                        start = end;
-                        continue;
+        Self::find_largest_jpeg_slice(buffer).filter(|s| Self::is_display_jpeg(s)).or_else(|| {
+            // As a fallback, return the first valid JPEG slice, even without APP markers.
+            let mut start = 0usize;
+            while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
+                let soi = start + rel_soi;
+                if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
+                    let end = soi + 3 + rel_eoi + 2;
+                    let slice = &buffer[soi..end];
+                    if Self::is_valid_jpeg(slice) {
+                        return Some(slice);
                     }
-                    break;
+                    start = end;
+                    continue;
                 }
-                None
-            })
+                break;
+            }
+            None
+        })
     }
 
     pub fn extract_valid_jpeg_with_cap<'a>(
@@ -387,9 +367,7 @@ impl ImageHelper {
     pub fn is_decodable_jpeg(slice: &[u8]) -> bool {
         Self::is_valid_jpeg(slice)
             && Self::jpeg_has_sof(slice)
-            && Decompressor::new()
-                .and_then(|mut d| d.read_header(slice).map(|_| ()))
-                .is_ok()
+            && Decompressor::new().and_then(|mut d| d.read_header(slice).map(|_| ())).is_ok()
     }
 
     pub fn jpeg_has_sof(slice: &[u8]) -> bool {

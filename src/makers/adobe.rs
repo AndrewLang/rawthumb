@@ -122,98 +122,35 @@ impl AdobeDecoder {
 
                 match tag {
                     0x0103 => {
-                        compression = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        )
-                        .map(|v| v as u16);
+                        compression = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes)
+                            .map(|v| v as u16);
                     }
                     0x0106 => {
-                        photometric = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        )
-                        .map(|v| v as u16);
+                        photometric = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes)
+                            .map(|v| v as u16);
                     }
                     0x00fe => {
-                        new_subfile = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        new_subfile = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes);
                     }
                     0x0201 => {
-                        jpeg_offset = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        jpeg_offset = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes);
                     }
                     0x0202 => {
-                        jpeg_len = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        jpeg_len = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes);
                     }
                     0x0111 => {
-                        strip_offset = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        strip_offset = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes);
                     }
                     0x0117 => {
-                        strip_len = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        strip_len = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes);
                     }
                     0x014a => {
-                        let offsets = Self::read_values(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        );
+                        let offsets = Self::read_values(buffer, le, type_id, count, value_offset, value_bytes);
                         sub_ifds.extend(offsets);
                     }
                     0x0112 => {
-                        orientation_tag = Self::read_first_value(
-                            buffer,
-                            le,
-                            type_id,
-                            count,
-                            value_offset,
-                            value_bytes,
-                        )
-                        .map(|v| v as u16);
+                        orientation_tag = Self::read_first_value(buffer, le, type_id, count, value_offset, value_bytes)
+                            .map(|v| v as u16);
                     }
                     _ => {}
                 }
@@ -268,9 +205,7 @@ impl AdobeDecoder {
         }
         // Avoid scanning the whole file; allow a modest overread beyond the declared length.
         let overread = 512 * 1024;
-        let max_end = buffer
-            .len()
-            .min(offset.saturating_add(len).saturating_add(overread));
+        let max_end = buffer.len().min(offset.saturating_add(len).saturating_add(overread));
         let window = &buffer[offset..max_end];
 
         if window.len() < 2 || window[0] != 0xff || window[1] != 0xd8 {
@@ -286,28 +221,15 @@ impl AdobeDecoder {
             return None;
         }
         let bytes = [buffer[offset], buffer[offset + 1]];
-        Some(if le {
-            u16::from_le_bytes(bytes)
-        } else {
-            u16::from_be_bytes(bytes)
-        })
+        Some(if le { u16::from_le_bytes(bytes) } else { u16::from_be_bytes(bytes) })
     }
 
     fn read_u32(buffer: &[u8], offset: usize, le: bool) -> Option<u32> {
         if offset + 4 > buffer.len() {
             return None;
         }
-        let bytes = [
-            buffer[offset],
-            buffer[offset + 1],
-            buffer[offset + 2],
-            buffer[offset + 3],
-        ];
-        Some(if le {
-            u32::from_le_bytes(bytes)
-        } else {
-            u32::from_be_bytes(bytes)
-        })
+        let bytes = [buffer[offset], buffer[offset + 1], buffer[offset + 2], buffer[offset + 3]];
+        Some(if le { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) })
     }
 
     fn read_first_value(
@@ -318,9 +240,7 @@ impl AdobeDecoder {
         value_offset: u32,
         value_bytes: &[u8],
     ) -> Option<u32> {
-        Self::read_values(buffer, le, type_id, count, value_offset, value_bytes)
-            .into_iter()
-            .next()
+        Self::read_values(buffer, le, type_id, count, value_offset, value_bytes).into_iter().next()
     }
 
     fn read_values(
@@ -353,11 +273,7 @@ impl AdobeDecoder {
                     1 => value_bytes[start] as u32,
                     2 => {
                         let bytes = [value_bytes[start], value_bytes[start + 1]];
-                        if le {
-                            u16::from_le_bytes(bytes) as u32
-                        } else {
-                            u16::from_be_bytes(bytes) as u32
-                        }
+                        if le { u16::from_le_bytes(bytes) as u32 } else { u16::from_be_bytes(bytes) as u32 }
                     }
                     4 => {
                         let bytes = [
@@ -366,11 +282,7 @@ impl AdobeDecoder {
                             value_bytes[start + 2],
                             value_bytes[start + 3],
                         ];
-                        if le {
-                            u32::from_le_bytes(bytes)
-                        } else {
-                            u32::from_be_bytes(bytes)
-                        }
+                        if le { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) }
                     }
                     _ => 0,
                 };
@@ -393,24 +305,11 @@ impl AdobeDecoder {
                 1 => buffer[start] as u32,
                 2 => {
                     let bytes = [buffer[start], buffer[start + 1]];
-                    if le {
-                        u16::from_le_bytes(bytes) as u32
-                    } else {
-                        u16::from_be_bytes(bytes) as u32
-                    }
+                    if le { u16::from_le_bytes(bytes) as u32 } else { u16::from_be_bytes(bytes) as u32 }
                 }
                 4 => {
-                    let bytes = [
-                        buffer[start],
-                        buffer[start + 1],
-                        buffer[start + 2],
-                        buffer[start + 3],
-                    ];
-                    if le {
-                        u32::from_le_bytes(bytes)
-                    } else {
-                        u32::from_be_bytes(bytes)
-                    }
+                    let bytes = [buffer[start], buffer[start + 1], buffer[start + 2], buffer[start + 3]];
+                    if le { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) }
                 }
                 _ => 0,
             };
@@ -430,20 +329,8 @@ impl AdobeDecoder {
         }
 
         let exif_preview = self
-            .try_slice(
-                parsed,
-                ExifNames::PREVIEW_OFFSET,
-                ExifNames::PREVIEW_LEN,
-                buffer,
-            )
-            .or_else(|| {
-                self.try_slice(
-                    parsed,
-                    ExifNames::THUMBNAIL,
-                    ExifNames::THUMBNAIL_LEN,
-                    buffer,
-                )
-            })
+            .try_slice(parsed, ExifNames::PREVIEW_OFFSET, ExifNames::PREVIEW_LEN, buffer)
+            .or_else(|| self.try_slice(parsed, ExifNames::THUMBNAIL, ExifNames::THUMBNAIL_LEN, buffer))
             .or_else(|| self.try_slice(parsed, "main_preview_offset", "main_preview_len", buffer))
             .filter(|slice| slice.len() > 100 * 1024);
 
@@ -460,9 +347,7 @@ impl AdobeDecoder {
             return Ok((None, jpeg));
         }
 
-        Err(DecodingError::RawInfoError(
-            ExifFieldError::field_not_found(ExifNames::THUMBNAIL),
-        ))
+        Err(DecodingError::RawInfoError(ExifFieldError::field_not_found(ExifNames::THUMBNAIL)))
     }
 
     fn try_slice<'a>(
@@ -482,18 +367,10 @@ impl AdobeDecoder {
             return None;
         }
         let slice = &buffer[offset..end];
-        if ImageHelper::is_valid_jpeg(slice) {
-            Some(slice)
-        } else {
-            None
-        }
+        if ImageHelper::is_valid_jpeg(slice) { Some(slice) } else { None }
     }
 
-    fn quick_jpeg_scan<'a>(
-        buffer: &'a [u8],
-        max_scan_bytes: usize,
-        min_size: usize,
-    ) -> Option<&'a [u8]> {
+    fn quick_jpeg_scan<'a>(buffer: &'a [u8], max_scan_bytes: usize, min_size: usize) -> Option<&'a [u8]> {
         ImageHelper::extract_valid_jpeg_with_cap(buffer, max_scan_bytes, min_size, true)
             .filter(|s| ImageHelper::is_decodable_jpeg(s))
     }
@@ -523,30 +400,23 @@ impl ThumbnailExtractor for AdobeThumbnailExtractor {
                 let (orientation_tag, jpeg) = self
                     .decoder
                     .find_jpeg_ifd_preview(buffer)
-                    .or_else(|| {
-                        AdobeDecoder::quick_jpeg_scan(buffer, 64 * 1024 * 1024, 16 * 1024)
-                            .map(|s| (None, s))
-                    })
+                    .or_else(|| AdobeDecoder::quick_jpeg_scan(buffer, 64 * 1024 * 1024, 16 * 1024).map(|s| (None, s)))
                     .or_else(|| {
                         ImageHelper::extract_best_jpeg_capped(buffer, buffer.len())
                             .filter(|slice| ImageHelper::is_decodable_jpeg(slice))
                             .map(|s| (None, s))
                     })
                     .ok_or_else(|| {
-                        DecodingError::RawInfoError(ExifFieldError::field_not_found(
-                            ExifNames::THUMBNAIL,
-                        ))
+                        DecodingError::RawInfoError(ExifFieldError::field_not_found(ExifNames::THUMBNAIL))
                     })?;
 
-                let orientation = ImageHelper::orientation_from_tag(orientation_tag)
-                    .unwrap_or(Orientation::Horizontal);
+                let orientation = ImageHelper::orientation_from_tag(orientation_tag).unwrap_or(Orientation::Horizontal);
                 return Ok(ThumbnailResult::new(Cow::Borrowed(jpeg), orientation));
             }
             Err(e) => return Err(e.into()),
         };
         let (orientation_tag, thumbnail) = self.decoder.get_thumbnail(&raw_info, buffer)?;
-        let orientation = ImageHelper::orientation_from_tag(orientation_tag)
-            .unwrap_or_else(|| raw_info.orientation());
+        let orientation = ImageHelper::orientation_from_tag(orientation_tag).unwrap_or_else(|| raw_info.orientation());
         Ok(ThumbnailResult::new(Cow::Borrowed(thumbnail), orientation))
     }
 }
