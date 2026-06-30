@@ -275,24 +275,52 @@ impl ImageHelper {
     }
 
     pub fn find_display_jpeg_slice<'a>(buffer: &'a [u8]) -> Option<&'a [u8]> {
-        Self::find_largest_jpeg_slice(buffer).filter(|s| Self::is_display_jpeg(s)).or_else(|| {
-            // As a fallback, return the first valid JPEG slice, even without APP markers.
-            let mut start = 0usize;
-            while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
-                let soi = start + rel_soi;
-                if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
-                    let end = soi + 3 + rel_eoi + 2;
-                    let slice = &buffer[soi..end];
-                    if Self::is_valid_jpeg(slice) {
-                        return Some(slice);
+        let mut start = 0usize;
+        let mut best: Option<(&[u8], u64, usize)> = None;
+
+        while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
+            let soi = start + rel_soi;
+            if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
+                let end = soi + 3 + rel_eoi + 2;
+                let slice = &buffer[soi..end];
+                if let Some((width, height)) = Self::jpeg_dimensions(slice) {
+                    let area = u64::from(width) * u64::from(height);
+                    if best.map(|(_, best_area, best_len)| (area, slice.len()) > (best_area, best_len)).unwrap_or(true)
+                    {
+                        best = Some((slice, area, slice.len()));
                     }
-                    start = end;
-                    continue;
                 }
-                break;
+                start = end;
+                continue;
             }
-            None
-        })
+            break;
+        }
+
+        best.map(|(slice, _, _)| slice)
+            .or_else(|| {
+                Self::extract_all_jpeg_segments(buffer)
+                    .into_iter()
+                    .filter(|segment| segment.is_valid_jpeg && Self::is_display_jpeg(segment.data))
+                    .max_by_key(|segment| segment.size)
+                    .map(|segment| segment.data)
+            })
+            .or_else(|| {
+                let mut start = 0usize;
+                while let Some(rel_soi) = buffer[start..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
+                    let soi = start + rel_soi;
+                    if let Some(rel_eoi) = buffer[soi + 3..].windows(2).position(|w| w == [0xff, 0xd9]) {
+                        let end = soi + 3 + rel_eoi + 2;
+                        let slice = &buffer[soi..end];
+                        if Self::is_valid_jpeg(slice) {
+                            return Some(slice);
+                        }
+                        start = end;
+                        continue;
+                    }
+                    break;
+                }
+                None
+            })
     }
 
     pub fn extract_valid_jpeg_with_cap<'a>(
@@ -368,6 +396,17 @@ impl ImageHelper {
         Self::is_valid_jpeg(slice)
             && Self::jpeg_has_sof(slice)
             && Decompressor::new().and_then(|mut d| d.read_header(slice).map(|_| ())).is_ok()
+    }
+
+    pub fn jpeg_dimensions(slice: &[u8]) -> Option<(u32, u32)> {
+        if !Self::is_valid_jpeg(slice) || !Self::jpeg_has_sof(slice) {
+            return None;
+        }
+
+        Decompressor::new()
+            .ok()
+            .and_then(|mut decompressor| decompressor.read_header(slice).ok())
+            .map(|header| (header.width as u32, header.height as u32))
     }
 
     pub fn jpeg_has_sof(slice: &[u8]) -> bool {

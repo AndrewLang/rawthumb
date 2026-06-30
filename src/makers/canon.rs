@@ -26,15 +26,15 @@ struct CanonDecoder;
 
 impl CanonDecoder {
     fn get_thumbnail<'a>(&self, buffer: &'a [u8], exif: &ParsedExif) -> std::result::Result<&'a [u8], DecodingError> {
-        if let Some(exif_jpeg) = ImageHelper::jpeg_from_exif(buffer, exif) {
-            return Ok(exif_jpeg);
-        }
+        let exif_jpeg = ImageHelper::jpeg_from_exif(buffer, exif);
+        let scanned_jpeg = ImageHelper::find_display_jpeg_slice(buffer);
 
-        if let Some(scanned) = ImageHelper::find_display_jpeg_slice(buffer) {
-            return Ok(scanned);
+        match (exif_jpeg, scanned_jpeg) {
+            (Some(exif), Some(scanned)) if scanned.len() > exif.len() => Ok(scanned),
+            (Some(exif), _) => Ok(exif),
+            (_, Some(scanned)) => Ok(scanned),
+            _ => Err(DecodingError::RawInfoError(ExifFieldError::field_not_found(ExifNames::THUMBNAIL))),
         }
-
-        Err(DecodingError::RawInfoError(ExifFieldError::field_not_found(ExifNames::THUMBNAIL)))
     }
 }
 
